@@ -16,19 +16,21 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY) #connects to supabase
 @app.route("/confirm-booking", methods = ['POST'])
 
 def confirm_booking():
+    try:
+        data = request.json
+        booking_id = data.get('booking_id')
+        # traverses in supabase to find booking_confirmation 
+        response = supabase.table('Booking_confirmation (reference numbers)').select('*').eq("id", booking_id).single().execute()
+        booking = response.data
 
-    # grabs JSON data and contains booking ids
-    data = request.json
-    booking_id = data.get('booking_id')
-    # traverses in supabase to find booking_confirmation 
-    response = supabase.table('Booking_confirmation').select('*').eq("id", booking_id).single().excute()
-    booking = response.data
+        if not booking: #checks if booking wasnt found and returns an error message
+            return jsonify({"Error": "Booking not found"}), 404
+        
+        send_confirmation_email(booking) # if booking found, send it to email function
+        return jsonify({'message': 'Confirmation email sent!'}), 200 #sends a success message
 
-    if not booking: #checks if booking wasnt found and returns an error message
-        return jsonify({"Error": "Booking not found"}), 404
-    
-    send_confirmation_email(booking) # if booking found, send it to email function
-    return jsonify({'message': 'Confirmation email sent!'}), 200 #sends a success message
+    except Exception as e:
+        return jsonify({"Error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
