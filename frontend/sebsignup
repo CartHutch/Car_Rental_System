@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sign Up</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Create Account</h1>
+
+    <input type="text" placeholder="First Name">
+    <input type="text" placeholder="Last Name">
+
+    <input type="email" placeholder="Email Address">
+
+    <input type="tel" placeholder="Phone Number">
+
+    <label style="text-align:left; display:block; margin-top:10px;">
+        Date of Birth
+    </label>
+    <input type="date">
+
+    <input type="text" placeholder="Address">
+
+    <input type="password" placeholder="Password">
+
+    <button>Create Account</button>
+
+    <p style="text-align:center;">
+        Already have an account?
+        <a href="login.html">Login</a>
+    </p>
+
+</div>
+
+</body>
+</html>
