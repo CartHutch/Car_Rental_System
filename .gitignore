@@ -1,9 +1,4 @@
-# Environment variables
 .env
-
-# Python cache
 __pycache__/
 *.pyc
-
-# Mac junk
 .DS_Store
