@@ -1,28 +1,26 @@
 from flask import Flask, request, jsonify
-from supabase import create_client
-from dotenv import load_dotenv
-import os
+from flask_cors import CORS
 
-load_dotenv()
-app = Flask(_name_)
-
-
-url = os.getenv("SUPABASE_URL")
-key = os.getenv("SUPABASE_KEY")
-supabase = create_client(url, key)
+app = Flask(__name__)
+CORS(app)
 
 @app.route("/api/reservations", methods=["POST"])
 def create_reservation():
-    data = request.json
+    try:
+        data = request.json
+        new_reservation = {
+            "user_id": data.get("user_id"),
+            "PickUp_Date": data.get("PickUp_Date"),
+            "Return_Date": data.get("Return_Date"),
+            "Pickup_Location": data.get("Pickup_Location"),
+            "Return_Location": data.get("Return_Location"),
+            "car_id": data.get("car_id")
+        }
+        print("Received reservation:", new_reservation)
+        return jsonify({"message": "Reservation received!"}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
-    new_reservation = {
-        "user_id": data["user_id"],
-        "PickUp_Date": data["PickUp_Date"],
-        "Return_Date": data["Return_Date"],
-        "Pickup_Location": data["Pickup_Location"],
-        "Return_Location": data["Return_Location"]
-    }
-
-    result = supabase.table("Reservation").insert(new_reservation).execute()
-    return jsonify(result.data), 201
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)
 
