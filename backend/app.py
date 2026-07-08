@@ -1,9 +1,10 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from supabase import create_client
 from dotenv import load_dotenv
 import hashlib
 import os
+import traceback
 
 load_dotenv()
 
@@ -60,8 +61,8 @@ def register():
         return jsonify({"message": "Account created successfully."}), 201
 
     except Exception as e:
-        print("Register error:", e)
-        return jsonify({"error": "An unexpected error occurred."}), 500
+        traceback.print_exc()  # This prints the full error details to your terminal
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/login", methods=["POST"])
@@ -160,6 +161,10 @@ def create_reservation():
     except Exception as e:
         print("Reservation error:", e)
         return jsonify({"error": "An unexpected error occurred."}), 500
+    
+@app.route("/home")
+def home():
+    return send_from_directory("frontend", "home.html")
 
 
 # ===== Main =====
