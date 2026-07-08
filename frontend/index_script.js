@@ -1,4 +1,3 @@
-
 /* POPUP TOGGLE */
 function togglePopup(id) {
   const overlay = document.getElementById(id);
@@ -157,8 +156,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const lastName  = document.getElementById('signup-lastname').value.trim();
       const email     = document.getElementById('signup-email').value.trim();
       const phone     = document.getElementById('signup-phone').value.trim();
-      const password  = document.getElementById('signup-password').value;
-      const confirm   = document.getElementById('signup-confirm').value;
+      // Trim password on signup so it always matches what login sends —
+      // stray autofill whitespace was a likely cause of "invalid login".
+      const password  = document.getElementById('signup-password').value.trim();
+      const confirm   = document.getElementById('signup-confirm').value.trim();
 
       const { ok: emailOk, msg: emailMsg } = validateEmail(email);
       if (!emailOk) {
@@ -203,9 +204,23 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       if (ok) {
-        setFormMsg('signup-msg', '✓ Account created! You can now log in.', 'success');
-        signupForm.reset();
+        setFormMsg('signup-msg', '✓ Account created! Logging you in…', 'success');
 
+        // Auto-login right after successful registration, then redirect
+        // to home — this is the piece that was missing before.
+        const loginResult = await API.login({ email, password });
+
+        if (loginResult.ok) {
+          sessionStorage.setItem('user_id', loginResult.data.user_id);
+          window.location.href = `${BASE_URL}/home`;
+          return; // stop here, we're navigating away
+        } else {
+          // Account was created fine, but auto-login failed for some
+          // reason — don't block the user, just point them to login.
+          setFormMsg('signup-msg', 'Account created! Please log in.', 'success');
+        }
+
+        signupForm.reset();
         fill.style.width  = '0%';
         label.textContent = '';
         document.querySelectorAll('.strength-checks li').forEach(li => li.classList.remove('met'));
@@ -226,7 +241,8 @@ document.addEventListener('DOMContentLoaded', () => {
       setFormMsg('login-msg', '', '');
 
       const email    = document.getElementById('login-email').value.trim();
-      const password = document.getElementById('login-password').value;
+      // Trim here too, to match the server-side trim and what signup sends.
+      const password = document.getElementById('login-password').value.trim();
 
       setLoading('login-btn', true);
 
@@ -236,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (ok) {
         setFormMsg('login-msg', '✓ Login successful! Redirecting…', 'success');
         sessionStorage.setItem('user_id', data.user_id);
-        window.location.href = '/home.html';
+        window.location.href = `${BASE_URL}/home`;
       } else {
         setFormMsg('login-msg', data.error || 'Invalid email or password.', 'error');
       }
