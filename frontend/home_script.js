@@ -1,11 +1,43 @@
 const API_URL = "http://127.0.0.1:5001/cars";
+const FILTERS_URL = "http://127.0.0.1:5001/filters";
+
+async function loadFilterOptions() {
+    try {
+        const res = await fetch(FILTERS_URL);
+        const filters = await res.json();
+
+        fillSelect("filterType", filters.types);
+        fillSelect("filterSeats", filters.seats);
+        fillSelect("filterLocation", filters.locations);
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function fillSelect(id, values) {
+    const select = document.getElementById(id);
+    values.forEach(value => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+    });
+}
 
 async function loadCars(search = "") {
-    let url = API_URL;
+    const params = new URLSearchParams();
 
-    if (search) {
-        url += `?model=${search}`;
-    }
+    if (search) params.append("model", search);
+
+    const type = document.getElementById("filterType").value;
+    const seats = document.getElementById("filterSeats").value;
+    const location = document.getElementById("filterLocation").value;
+
+    if (type) params.append("type", type);
+    if (seats) params.append("seats", seats);
+    if (location) params.append("location", location);
+
+    const url = params.toString() ? `${API_URL}?${params}` : API_URL;
 
     try {
         const res = await fetch(url);
@@ -42,5 +74,21 @@ document.querySelector(".search-box").addEventListener("submit", (e) => {
     loadCars(search);
 });
 
+// apply filters
+document.getElementById("applyFilters").addEventListener("click", () => {
+    const search = document.getElementById("searchInput").value;
+    loadCars(search);
+});
+
+// clear filters
+document.getElementById("clearFilters").addEventListener("click", () => {
+    document.getElementById("filterType").value = "";
+    document.getElementById("filterSeats").value = "";
+    document.getElementById("filterLocation").value = "";
+    document.getElementById("searchInput").value = "";
+    loadCars();
+});
+
 // initial load
+loadFilterOptions();
 loadCars();

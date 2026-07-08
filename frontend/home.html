@@ -9,13 +9,34 @@
 <body>
 
 <header>
-    <h1>RentalRide</h1>
+    <div class="header-top">
+        <h1>RentalRide</h1>
 
-    <!-- SIMPLE SEARCH ONLY -->
-    <form class="search-box">
-        <input type="text" id="searchInput" placeholder="Search car model...">
-        <button type="submit">Search</button>
-    </form>
+        <form class="search-box">
+            <input type="text" id="searchInput" placeholder="Search car model...">
+            <button type="submit">Search</button>
+        </form>
+    </div>
+
+    <!-- FILTERS -->
+    <div class="filter-bar">
+        <span class="filter-label">Filter by:</span>
+
+        <select id="filterType">
+            <option value="">All Types</option>
+        </select>
+
+        <select id="filterSeats">
+            <option value="">Any Seats</option>
+        </select>
+
+        <select id="filterLocation">
+            <option value="">All Locations</option>
+        </select>
+
+        <button id="applyFilters" type="button">Apply Filters</button>
+        <button id="clearFilters" type="button">Clear</button>
+    </div>
 </header>
 
 <main>
