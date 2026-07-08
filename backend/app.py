@@ -17,6 +17,9 @@ SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# frontend/ lives one level up from this file (backend/app.py -> ../frontend)
+FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend")
+
 
 # ===== AUTH for Login / Sign Up ======
 @app.route("/register", methods=["POST"])
@@ -29,7 +32,9 @@ def register():
                 return jsonify({"error": f"'{field}' is required."}), 400
 
         email    = data["email"].strip().lower()
-        password = data["password"]
+        # Strip password too, so a stray leading/trailing space (e.g. from
+        # autofill) can't create a hash mismatch between signup and login.
+        password = data["password"].strip()
 
         # Check if email already exists
         existing = supabase.table("users").select("id").eq("email", email).execute()
@@ -58,7 +63,13 @@ def register():
         if not result.data:
             return jsonify({"error": "Registration failed. Please try again."}), 500
 
-        return jsonify({"message": "Account created successfully."}), 201
+        user = result.data[0]
+        return jsonify({
+            "message":    "Account created successfully.",
+            "user_id":    user["id"],
+            "first_name": user["first_name"],
+            "last_name":  user["last_name"],
+        }), 201
 
     except Exception as e:
         traceback.print_exc()  # This prints the full error details to your terminal
@@ -71,7 +82,7 @@ def login():
         data = request.json
 
         email    = (data.get("email") or "").strip().lower()
-        password = (data.get("password") or "")
+        password = (data.get("password") or "").strip()
 
         if not email or not password:
             return jsonify({"error": "Email and password are required."}), 400
@@ -161,10 +172,21 @@ def create_reservation():
     except Exception as e:
         print("Reservation error:", e)
         return jsonify({"error": "An unexpected error occurred."}), 500
-    
+
+# ===== Frontend routes =====
 @app.route("/home")
+@app.route("/home.html")
 def home():
-    return send_from_directory("frontend", "home.html")
+    return send_from_directory(FRONTEND_DIR, "home.html")
+
+@app.route("/")
+def index():
+    return send_from_directory(FRONTEND_DIR, "index.html")
+
+@app.route("/<path:filename>")
+def frontend_files(filename):
+    # Serves any other frontend file (e.g. script.js, style.css, other pages)
+    return send_from_directory(FRONTEND_DIR, filename)
 
 
 # ===== Main =====
