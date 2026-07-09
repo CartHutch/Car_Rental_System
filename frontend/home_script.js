@@ -1,24 +1,16 @@
 // Page state
 let selectedCar = null;
 
-/* Tab Switching */
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const target = btn.dataset.tab;
-    document.querySelectorAll('.tab-btn').forEach(b => {
-      b.classList.remove('active');
-      b.setAttribute('aria-selected', 'false');
-    });
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    btn.setAttribute('aria-selected', 'true');
-    document.getElementById(`tab-${target}`).classList.add('active');
-  });
-});
+/* HEADER — show logged-in user's first name */
+(function initHeaderUser() {
+  const firstName = sessionStorage.getItem('first_name');
+  const nameEl = document.getElementById('userFirstName');
+  if (nameEl) nameEl.textContent = firstName || 'Account';
+})();
 
-function switchToTab(tabName) {
-  document.querySelector(`.tab-btn[data-tab="${tabName}"]`).click();
-}
+document.getElementById('accountBtn').addEventListener('click', () => {
+  window.location.href = 'account.html';
+});
 
 /* LOGOUT */
 document.getElementById('logoutBtn').addEventListener('click', () => {
@@ -76,7 +68,8 @@ async function loadCars(filters = {}) {
     </div>`;
   counter.textContent = '';
 
-  // API CALL (via api.js)
+  // API CALL (via api.js) — startDate/endDate ask the backend to exclude
+  // any car whose existing reservations collide with the chosen range.
   const { ok, data } = await API.getCars(filters);
 
   if (!ok) {
@@ -151,7 +144,10 @@ function renderCars(cars) {
           class="btn-reserve-card"
           data-car-id="${escapeHtml(String(car.id ?? ''))}"
           data-car-model="${escapeHtml(car.model)}"
-          data-car-price="${car.price || 0}">
+          data-car-price="${car.price || 0}"
+          data-car-seats="${escapeHtml(String(car.seats ?? ''))}"
+          data-car-type="${escapeHtml(car.type || '')}"
+          data-car-location="${escapeHtml(car.location || '')}">
           Reserve This Car
         </button>
       </div>`;
@@ -159,50 +155,209 @@ function renderCars(cars) {
     grid.appendChild(card);
   });
 
-  // Wire up Reserve buttons
+  // Wire up Reserve buttons -> open modal
   grid.querySelectorAll('.btn-reserve-card').forEach(btn => {
     btn.addEventListener('click', () => {
+      const filterStart = document.getElementById('filterStartDate').value;
+      const filterEnd   = document.getElementById('filterEndDate').value;
+
+      if (!filterStart || !filterEnd) {
+        showNoticeModal(
+          'Select Your Dates',
+          'Please choose a pick-up and return date in the filters above before reserving a car.'
+        );
+        return;
+      }
+
       selectedCar = {
-        id:    btn.dataset.carId,
-        model: btn.dataset.carModel,
-        price: parseFloat(btn.dataset.carPrice) || 0,
+        id:       btn.dataset.carId,
+        model:    btn.dataset.carModel,
+        price:    parseFloat(btn.dataset.carPrice) || 0,
+        seats:    btn.dataset.carSeats,
+        type:     btn.dataset.carType,
+        location: btn.dataset.carLocation,
       };
-
-      document.getElementById('res-carId').value = selectedCar.id;
-      setInputState(document.getElementById('res-carId'), 'is-valid');
-
-      document.getElementById('selectedCarName').textContent =
-        `${selectedCar.model} (ID: ${selectedCar.id}) — $${selectedCar.price.toFixed(2)}/day`;
-      document.getElementById('selectedCarBanner').hidden = false;
-
-      updateCostEstimate();
-      switchToTab('reserve');
+      openReserveModal();
     });
   });
 }
 
-/* FILTER FORM*/
+/* FILTER FORM (model / type / seats / date range) */
 document.getElementById('filterForm').addEventListener('submit', e => {
   e.preventDefault();
-  loadCars({
-    model: document.getElementById('searchModel').value.trim(),
-    type:  document.getElementById('filterType').value,
-    seats: document.getElementById('filterSeats').value,
-  });
+  applyFilters();
 });
 
+function applyFilters() {
+  const startDate = document.getElementById('filterStartDate').value;
+  const endDate   = document.getElementById('filterEndDate').value;
+
+  loadCars({
+    model:     document.getElementById('searchModel').value.trim(),
+    type:      document.getElementById('filterType').value,
+    seats:     document.getElementById('filterSeats').value,
+    location:  document.getElementById('filterLocation').value.trim(),
+    startDate: startDate,
+    endDate:   endDate,
+  });
+}
+
 document.getElementById('clearFilters').addEventListener('click', () => {
-  document.getElementById('searchModel').value = '';
-  document.getElementById('filterType').value  = '';
-  document.getElementById('filterSeats').value = '';
+  document.getElementById('searchModel').value     = '';
+  document.getElementById('filterType').value      = '';
+  document.getElementById('filterSeats').value     = '';
+  document.getElementById('filterLocation').value  = '';
+  document.getElementById('filterStartDate').value = '';
+  document.getElementById('filterEndDate').value   = '';
   loadCars();
+});
+
+/* Keep filter end-date min in sync with start-date */
+document.getElementById('filterStartDate').addEventListener('change', function () {
+  document.getElementById('filterEndDate').min = this.value;
+});
+
+/* ==== LOCATION COMBOBOX (typeahead city search) ==== */
+
+let allCities = [];
+
+async function loadCities() {
+  const { ok, data } = await API.getLocations();
+  allCities = ok && Array.isArray(data) ? data : [];
+}
+
+function highlightMatch(city, query) {
+  if (!query) return escapeHtml(city);
+  const idx = city.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return escapeHtml(city);
+  const before = escapeHtml(city.slice(0, idx));
+  const match  = escapeHtml(city.slice(idx, idx + query.length));
+  const after  = escapeHtml(city.slice(idx + query.length));
+  return `${before}<mark>${match}</mark>${after}`;
+}
+
+function renderLocationDropdown(query) {
+  const dropdown = document.getElementById('locationDropdown');
+  const q = query.trim().toLowerCase();
+
+  const matches = q
+    ? allCities.filter(c => c.toLowerCase().includes(q))
+    : allCities;
+
+  if (!matches.length) {
+    dropdown.innerHTML = `<li class="location-option--empty">No matching cities</li>`;
+  } else {
+    dropdown.innerHTML = matches
+      .map(city => `<li class="location-option" data-city="${escapeHtml(city)}">${highlightMatch(city, query.trim())}</li>`)
+      .join('');
+  }
+
+  dropdown.hidden = false;
+}
+
+const filterLocationInput = document.getElementById('filterLocation');
+const locationDropdown    = document.getElementById('locationDropdown');
+
+filterLocationInput.addEventListener('focus', () => renderLocationDropdown(filterLocationInput.value));
+filterLocationInput.addEventListener('input', () => renderLocationDropdown(filterLocationInput.value));
+
+locationDropdown.addEventListener('click', e => {
+  const option = e.target.closest('.location-option');
+  if (!option) return;
+  filterLocationInput.value = option.dataset.city;
+  locationDropdown.hidden = true;
+});
+
+document.addEventListener('click', e => {
+  if (!document.getElementById('locationCombobox').contains(e.target)) {
+    locationDropdown.hidden = true;
+  }
+});
+
+loadCities();
+
+/* ==== NOTICE MODAL (themed replacement for alert()) ==== */
+
+function showNoticeModal(title, message) {
+  document.getElementById('noticeModalTitle').textContent   = title;
+  document.getElementById('noticeModalMessage').textContent = message;
+  const overlay = document.getElementById('noticeModalOverlay');
+  overlay.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeNoticeModal() {
+  document.getElementById('noticeModalOverlay').hidden = true;
+  if (document.getElementById('reserveModalOverlay').hidden) {
+    document.body.style.overflow = '';
+  }
+}
+
+document.getElementById('noticeModalCloseBtn').addEventListener('click', closeNoticeModal);
+document.getElementById('noticeModalOkBtn').addEventListener('click', closeNoticeModal);
+document.getElementById('noticeModalOverlay').addEventListener('click', e => {
+  if (e.target.id === 'noticeModalOverlay') closeNoticeModal();
+});
+
+/* ==== RESERVE MODAL ==== */
+
+function openReserveModal() {
+  const overlay = document.getElementById('reserveModalOverlay');
+
+  document.getElementById('res-carId').value = selectedCar.id;
+
+  document.getElementById('selectedCarModel').textContent = selectedCar.model;
+  document.getElementById('selectedCarMeta').textContent =
+    `${selectedCar.type || '—'} · ${selectedCar.seats ? selectedCar.seats + ' seats' : '—'}`;
+  document.getElementById('selectedCarPrice').textContent =
+    `$${selectedCar.price.toFixed(2)} / day`;
+  document.getElementById('selectedCarLocation').textContent =
+    selectedCar.location ? `Pick-up & return at ${selectedCar.location}` : 'Pick-up & return location not available';
+
+  // Dates come from the Browse Cars filters — the modal just displays them.
+  const filterStart = document.getElementById('filterStartDate').value;
+  const filterEnd   = document.getElementById('filterEndDate').value;
+
+  document.getElementById('res-pickup-date-display').textContent = filterStart || '—';
+  document.getElementById('res-return-date-display').textContent = filterEnd || '—';
+
+  updateCostEstimate();
+
+  overlay.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeReserveModal() {
+  const overlay = document.getElementById('reserveModalOverlay');
+  overlay.hidden = true;
+  document.body.style.overflow = '';
+
+  selectedCar = null;
+  document.getElementById('reserveForm').reset();
+  document.getElementById('costEstimate').hidden = true;
+  setFormMsg('reserve-msg', '', '');
+  setFieldMsg('dates-msg', '', '');
+}
+
+document.getElementById('modalCloseBtn').addEventListener('click', closeReserveModal);
+
+document.getElementById('reserveModalOverlay').addEventListener('click', e => {
+  if (e.target.id === 'reserveModalOverlay') closeReserveModal();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const notice = document.getElementById('noticeModalOverlay');
+  if (!notice.hidden) { closeNoticeModal(); return; }
+  const overlay = document.getElementById('reserveModalOverlay');
+  if (!overlay.hidden) closeReserveModal();
 });
 
 /* COST ESTIMATE */
 
 function updateCostEstimate() {
-  const pickupVal = document.getElementById('res-pickup-date').value;
-  const returnVal = document.getElementById('res-return-date').value;
+  const pickupVal = document.getElementById('filterStartDate').value;
+  const returnVal = document.getElementById('filterEndDate').value;
   const box       = document.getElementById('costEstimate');
 
   if (!pickupVal || !returnVal || !selectedCar) { box.hidden = true; return; }
@@ -218,24 +373,7 @@ function updateCostEstimate() {
   box.hidden = false;
 }
 
-['res-pickup-date', 'res-return-date'].forEach(id =>
-  document.getElementById(id).addEventListener('change', updateCostEstimate)
-);
 
-/* Keep return-date min in sync */
-document.getElementById('res-pickup-date').addEventListener('change', function () {
-  document.getElementById('res-return-date').min = this.value;
-});
-
-/* CLEAR SELECTED CAR */
-
-document.getElementById('clearCarBtn').addEventListener('click', () => {
-  selectedCar = null;
-  document.getElementById('res-carId').value              = '';
-  document.getElementById('selectedCarBanner').hidden      = true;
-  document.getElementById('costEstimate').hidden           = true;
-  setInputState(document.getElementById('res-carId'), '');
-});
 
 /* RESERVATION FORM -> VALIDATION & SUBMIT */
 
@@ -244,91 +382,55 @@ document.getElementById('reserveForm').addEventListener('submit', async e => {
   setFormMsg('reserve-msg', '', '');
 
   const carId      = document.getElementById('res-carId').value.trim();
-  const pickupDate = document.getElementById('res-pickup-date').value;
-  const returnDate = document.getElementById('res-return-date').value;
-  const pickupLoc  = document.getElementById('res-pickup-loc').value.trim();
-  const returnLoc  = document.getElementById('res-return-loc').value.trim();
+  const pickupDate = document.getElementById('filterStartDate').value;
+  const returnDate = document.getElementById('filterEndDate').value;
+  const location   = (selectedCar && selectedCar.location) || '';
   const today      = new Date().toISOString().split('T')[0];
 
   let valid = true;
 
   if (!carId) {
-    setFieldMsg('carId-msg', 'Please enter or select a Car ID.', 'error');
-    setInputState(document.getElementById('res-carId'), 'is-error');
+    showNoticeModal('No Car Selected', 'Please select a car from Browse Cars first.');
     valid = false;
-  } else {
-    setFieldMsg('carId-msg', '');
-    setInputState(document.getElementById('res-carId'), 'is-valid');
   }
 
-  if (!pickupDate) {
-    setFieldMsg('pickupDate-msg', 'Pick-up date is required.', 'error');
-    setInputState(document.getElementById('res-pickup-date'), 'is-error');
+  // Dates come from the Browse Cars filters (required before the modal can
+  // even open), but re-validate here in case they were cleared meanwhile.
+  if (!pickupDate || !returnDate) {
+    setFieldMsg('dates-msg', 'Please set a pick-up and return date in the filters.', 'error');
     valid = false;
   } else if (pickupDate < today) {
-    setFieldMsg('pickupDate-msg', 'Pick-up date cannot be in the past.', 'error');
-    setInputState(document.getElementById('res-pickup-date'), 'is-error');
+    setFieldMsg('dates-msg', 'Pick-up date cannot be in the past.', 'error');
+    valid = false;
+  } else if (returnDate <= pickupDate) {
+    setFieldMsg('dates-msg', 'Return date must be after pick-up date.', 'error');
     valid = false;
   } else {
-    setFieldMsg('pickupDate-msg', '');
-    setInputState(document.getElementById('res-pickup-date'), 'is-valid');
-  }
-
-  if (!returnDate) {
-    setFieldMsg('returnDate-msg', 'Return date is required.', 'error');
-    setInputState(document.getElementById('res-return-date'), 'is-error');
-    valid = false;
-  } else if (pickupDate && returnDate <= pickupDate) {
-    setFieldMsg('returnDate-msg', 'Return date must be after pick-up date.', 'error');
-    setInputState(document.getElementById('res-return-date'), 'is-error');
-    valid = false;
-  } else {
-    setFieldMsg('returnDate-msg', '');
-    setInputState(document.getElementById('res-return-date'), 'is-valid');
-  }
-
-  if (!pickupLoc) {
-    setFieldMsg('pickupLoc-msg', 'Pick-up location is required.', 'error');
-    setInputState(document.getElementById('res-pickup-loc'), 'is-error');
-    valid = false;
-  } else {
-    setFieldMsg('pickupLoc-msg', '');
-    setInputState(document.getElementById('res-pickup-loc'), 'is-valid');
-  }
-
-  if (!returnLoc) {
-    setFieldMsg('returnLoc-msg', 'Return location is required.', 'error');
-    setInputState(document.getElementById('res-return-loc'), 'is-error');
-    valid = false;
-  } else {
-    setFieldMsg('returnLoc-msg', '');
-    setInputState(document.getElementById('res-return-loc'), 'is-valid');
+    setFieldMsg('dates-msg', '');
   }
 
   if (!valid) return;
 
   setLoading('reserve-btn', true);
 
-  //API CALL (via api.js)
+  // API CALL (via api.js)
   const { ok, data } = await API.createReservation({
     user_id:         sessionStorage.getItem('user_id') || null,
     car_id:          carId,
     PickUp_Date:     pickupDate,
     Return_Date:     returnDate,
-    Pickup_Location: pickupLoc,
-    Return_Location: returnLoc,
+    Pickup_Location: location,
+    Return_Location: location,
   });
 
   if (ok) {
     setFormMsg('reserve-msg', "✓ Reservation confirmed! You're all set.", 'success');
-    document.getElementById('reserveForm').reset();
-    document.querySelectorAll('#reserveForm .form-input').forEach(i => setInputState(i, ''));
-    document.querySelectorAll('#reserveForm .field-msg').forEach(m => {
-      m.textContent = ''; m.className = 'field-msg';
-    });
-    document.getElementById('costEstimate').hidden      = true;
-    document.getElementById('selectedCarBanner').hidden = true;
-    selectedCar = null;
+    setLoading('reserve-btn', false);
+    setTimeout(() => {
+      closeReserveModal();
+      applyFilters(); // refresh car list to reflect new booking
+    }, 1200);
+    return;
   } else {
     setFormMsg('reserve-msg', data.error || 'Reservation failed. Please try again.', 'error');
   }
@@ -337,7 +439,7 @@ document.getElementById('reserveForm').addEventListener('submit', async e => {
 });
 
 const todayStr = new Date().toISOString().split('T')[0];
-document.getElementById('res-pickup-date').min = todayStr;
-document.getElementById('res-return-date').min = todayStr;
+document.getElementById('filterStartDate').min = todayStr;
+document.getElementById('filterEndDate').min   = todayStr;
 
 loadCars();
