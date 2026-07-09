@@ -207,16 +207,14 @@ document.addEventListener('DOMContentLoaded', () => {
         setFormMsg('signup-msg', '✓ Account created! Logging you in…', 'success');
 
         // Auto-login right after successful registration, then redirect
-        // to home — this is the piece that was missing before.
         const loginResult = await API.login({ email, password });
 
         if (loginResult.ok) {
           sessionStorage.setItem('user_id', loginResult.data.user_id);
+          sessionStorage.setItem('first_name', loginResult.data.first_name || firstName);
           window.location.href = `${BASE_URL}/home`;
-          return; // stop here, we're navigating away
+          return;
         } else {
-          // Account was created fine, but auto-login failed for some
-          // reason — don't block the user, just point them to login.
           setFormMsg('signup-msg', 'Account created! Please log in.', 'success');
         }
 
@@ -241,7 +239,6 @@ document.addEventListener('DOMContentLoaded', () => {
       setFormMsg('login-msg', '', '');
 
       const email    = document.getElementById('login-email').value.trim();
-      // Trim here too, to match the server-side trim and what signup sends.
       const password = document.getElementById('login-password').value.trim();
 
       setLoading('login-btn', true);
@@ -252,6 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (ok) {
         setFormMsg('login-msg', '✓ Login successful! Redirecting…', 'success');
         sessionStorage.setItem('user_id', data.user_id);
+        if (data.first_name) sessionStorage.setItem('first_name', data.first_name);
         window.location.href = `${BASE_URL}/home`;
       } else {
         setFormMsg('login-msg', data.error || 'Invalid email or password.', 'error');
