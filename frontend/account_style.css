@@ -1,0 +1,220 @@
+.account-btn--active {
+  background: #09193a;
+  color: #ffffff;
+}
+.account-btn--active svg { opacity: 1; }
+
+.account-main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 48px 40px 80px;
+}
+
+.account-heading {
+  margin-bottom: 40px;
+}
+
+.account-heading h1 {
+  font-size: 32px;
+  font-weight: 800;
+  color: #081a37;
+  margin-bottom: 6px;
+}
+
+.account-heading p {
+  font-size: 15px;
+  color: #666;
+}
+
+/* ---- Section ---- */
+.res-section {
+  margin-bottom: 48px;
+}
+
+.res-section-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #09193a;
+  margin-bottom: 16px;
+}
+
+.res-table {
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+  padding: 8px 28px 4px;
+}
+
+/* ---- Column layout (shared by header + rows) ---- */
+.res-table-head,
+.res-row {  
+  display: grid;
+  grid-template-columns: 3fr 1.8fr 0.8fr 0.8fr;
+  align-items: center;
+  gap: 20px;
+}
+
+.res-table-head {
+  padding: 18px 0 14px;
+  border-bottom: 1px solid #eceef3;
+}
+
+.res-table-head .res-col {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9a9fb0;
+}
+
+.res-col--cost { text-align: right; }
+
+/* ---- Rows ---- */
+.res-row {
+  padding: 24px 0;
+  border-bottom: 1px solid #f0f1f5;
+}
+
+.res-row:last-child { border-bottom: none; }
+
+/* CAR column */
+.res-col--car {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.res-car-img {
+  width: 180px;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #e8eaed;
+  flex-shrink: 0;
+}
+
+.res-car-img-placeholder {
+  width: 180px;
+  height: 130px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #e8eaed 0%, #d5d8de 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
+  flex-shrink: 0;
+}
+
+.res-car-info { min-width: 0; }
+
+.res-car-model {
+  font-size: 20px;
+  font-weight: 700;
+  color: #081a37;
+  line-height: 1.25;
+  margin-bottom: 4px;
+}
+
+.res-details-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: "Open Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #2f5bb8;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.res-details-link:hover { color: #09193a; }
+
+.res-details-panel[hidden] {
+  display: none !important;
+}
+
+.res-details-panel {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #555;
+  background: #f5f6f9;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.res-details-panel span { font-weight: 700; color: #09193a; }
+
+/* RENTAL DATES column */
+.res-col--dates {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  justify-self: start;
+}
+
+/* LOCATION column */
+.res-col--location {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+  color: #333;
+  justify-self: start;
+}
+
+.res-col--location .res-loc-row span.res-loc-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #9a9fb0;
+  margin-right: 6px;
+}
+
+.res-col--location .res-loc-value { font-weight: 700; color: #09193a; }
+
+/* TOTAL COST column */
+.res-col--cost {
+  font-size: 20px;
+  font-weight: 800;
+  color: #09193a;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ---- Loading / empty states ---- */
+.res-loading,
+.res-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 56px 0;
+  color: #888;
+  font-size: 14px;
+  text-align: center;
+}
+
+.res-empty svg { opacity: 0.3; }
+
+/* ---- Responsive ---- */
+@media (max-width: 860px) {
+  .res-table-head { display: none; }
+
+  .res-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 20px 0;
+  }
+
+  .res-col--cost {
+    text-align: left;
+    font-size: 18px;
+  }
+
+  .account-main { padding: 32px 20px 60px; }
+  .res-table { padding: 6px 18px 4px; }
+}

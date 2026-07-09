@@ -2,19 +2,18 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from supabase import create_client
 from dotenv import load_dotenv
+from datetime import datetime, date
 import hashlib
 import os
 import traceback
 
 load_dotenv()
-
 app = Flask(__name__)
 CORS(app)
 
 # ===== Supabase Connection ======
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_KEY"]
-
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # frontend/ lives one level up from this file (backend/app.py -> ../frontend)
@@ -31,7 +30,7 @@ def register():
             if not data.get(field):
                 return jsonify({"error": f"'{field}' is required."}), 400
 
-        email    = data["email"].strip().lower()
+        email = data["email"].strip().lower()
         # Strip password too, so a stray leading/trailing space (e.g. from
         # autofill) can't create a hash mismatch between signup and login.
         password = data["password"].strip()
@@ -45,30 +44,29 @@ def register():
         password_hash = hashlib.sha256(password.encode()).hexdigest()
 
         new_user = {
-            "first_name":   data.get("first_name", "").strip(),
-            "last_name":    data.get("last_name", "").strip(),
-            "email":        email,
-            "password":     password_hash,
+            "first_name": data.get("first_name", "").strip(),
+            "last_name": data.get("last_name", "").strip(),
+            "email": email,
+            "password": password_hash,
             "phone_number": data.get("phone_number", "").strip(),
-            "street":       data.get("street", "").strip(),
-            "city":         data.get("city", "").strip(),
-            "province":     data.get("province", "").strip(),
-            "country":      data.get("country", "").strip(),
-            "postal_code":  data.get("postal_code", "").strip(),
-            "dob":          data.get("dob") or None,
+            "street": data.get("street", "").strip(),
+            "city": data.get("city", "").strip(),
+            "province": data.get("province", "").strip(),
+            "country": data.get("country", "").strip(),
+            "postal_code": data.get("postal_code", "").strip(),
+            "dob": data.get("dob") or None,
         }
 
         result = supabase.table("users").insert(new_user).execute()
-
         if not result.data:
             return jsonify({"error": "Registration failed. Please try again."}), 500
 
         user = result.data[0]
         return jsonify({
-            "message":    "Account created successfully.",
-            "user_id":    user["id"],
+            "message": "Account created successfully.",
+            "user_id": user["id"],
             "first_name": user["first_name"],
-            "last_name":  user["last_name"],
+            "last_name": user["last_name"],
         }), 201
 
     except Exception as e:
@@ -80,10 +78,8 @@ def register():
 def login():
     try:
         data = request.json
-
-        email    = (data.get("email") or "").strip().lower()
+        email = (data.get("email") or "").strip().lower()
         password = (data.get("password") or "").strip()
-
         if not email or not password:
             return jsonify({"error": "Email and password are required."}), 400
 
@@ -96,16 +92,15 @@ def login():
             .eq("password", password_hash)
             .execute()
         )
-
         if not result.data:
             return jsonify({"error": "Invalid email or password."}), 401
 
         user = result.data[0]
         return jsonify({
             "message": "Login successful.",
-            "user_id":    user["id"],
+            "user_id": user["id"],
             "first_name": user["first_name"],
-            "last_name":  user["last_name"],
+            "last_name": user["last_name"],
         }), 200
 
     except Exception as e:
@@ -113,8 +108,7 @@ def login():
         return jsonify({"error": "An unexpected error occurred."}), 500
 
 
-
-#  ===== Cars Search =====
+# ===== Cars Search =====
 @app.route("/locations", methods=["GET"])
 def get_locations():
     try:
@@ -129,15 +123,14 @@ def get_locations():
 @app.route("/cars", methods=["GET"])
 def get_cars():
     try:
-        model      = request.args.get("model")
-        car_type   = request.args.get("type")
-        seats      = request.args.get("seats")
-        location   = request.args.get("location")
+        model = request.args.get("model")
+        car_type = request.args.get("type")
+        seats = request.args.get("seats")
+        location = request.args.get("location")
         start_date = request.args.get("start_date")  # requested pick-up date
-        end_date   = request.args.get("end_date")    # requested return date
+        end_date = request.args.get("end_date")  # requested return date
 
         query = supabase.table("cars").select("*")
-
         if model:
             query = query.ilike("model", f"%{model}%")
         if car_type:
@@ -148,7 +141,6 @@ def get_cars():
             query = query.ilike("location", f"%{location}%")
 
         cars = query.execute().data or []
-
         car_ids = [c["id"] for c in cars]
 
         # Pull existing reservations for these cars so we can (a) filter out
@@ -178,7 +170,6 @@ def get_cars():
         for c in cars:
             car_reservations = reservations_by_car.get(c["id"], [])
             c["reservations"] = car_reservations
-
             if start_date and end_date:
                 collides = any(
                     ranges_overlap(start_date, end_date, r["PickUp_Date"], r["Return_Date"])
@@ -186,21 +177,19 @@ def get_cars():
                 )
                 if collides:
                     continue
-
             result_cars.append(c)
 
         return jsonify(result_cars), 200
-
     except Exception as e:
         print("Get cars error:", e)
         return jsonify({"error": "Failed to fetch cars."}), 500
+
 
 # ===== Cars Reservations =====
 @app.route("/api/reservations", methods=["POST"])
 def create_reservation():
     try:
         data = request.json
-
         required = ["car_id", "PickUp_Date", "Return_Date", "Pickup_Location", "Return_Location"]
         for field in required:
             if not data.get(field):
@@ -225,24 +214,94 @@ def create_reservation():
                 return jsonify({"error": "This car is already booked for part of that date range."}), 409
 
         new_reservation = {
-            "user_id":          data.get("user_id"),
-            "car_id":           data.get("car_id"),
-            "PickUp_Date":      data.get("PickUp_Date"),
-            "Return_Date":      data.get("Return_Date"),
-            "Pickup_Location":  data.get("Pickup_Location"),
-            "Return_Location":  data.get("Return_Location"),
+            "user_id": data.get("user_id"),
+            "car_id": data.get("car_id"),
+            "PickUp_Date": data.get("PickUp_Date"),
+            "Return_Date": data.get("Return_Date"),
+            "Pickup_Location": data.get("Pickup_Location"),
+            "Return_Location": data.get("Return_Location"),
         }
 
         result = supabase.table("reservations").insert(new_reservation).execute()
-
         if not result.data:
             return jsonify({"error": "Failed to save reservation."}), 500
 
         return jsonify({"message": "Reservation confirmed!", "reservation": result.data[0]}), 201
-
     except Exception as e:
         print("Reservation error:", e)
         return jsonify({"error": "An unexpected error occurred."}), 500
+
+
+@app.route("/api/reservations/<user_id>", methods=["GET"])
+def get_user_reservations(user_id):
+    """
+    Returns { "upcoming": [...], "history": [...] } for the given user.
+    Each reservation is joined with its car's model/image/price so the
+    My Reservations page can render everything in one request.
+    """
+    try:
+        res_rows = (
+            supabase.table("reservations")
+            .select("*")
+            .eq("user_id", user_id)
+            .execute()
+            .data
+            or []
+        )
+
+        # Fetch all cars and index by str(id) rather than filtering with
+        # .in_("id", car_ids) — if car_id is stored as text on the
+        # reservations table but "id" is an integer on cars (or vice versa),
+        # Postgrest's in_() can silently return zero matches. Comparing as
+        # strings sidesteps that mismatch entirely.
+        car_rows = supabase.table("cars").select("*").execute().data or []
+        cars_by_id = {str(c["id"]): c for c in car_rows}
+
+        today_str = date.today().isoformat()
+
+        def compute_days(pickup, ret):
+            try:
+                d1 = datetime.strptime(pickup, "%Y-%m-%d")
+                d2 = datetime.strptime(ret, "%Y-%m-%d")
+                return max((d2 - d1).days, 0)
+            except (TypeError, ValueError):
+                return 0
+
+        upcoming, history = [], []
+        for r in res_rows:
+            car = cars_by_id.get(r.get("car_id"), {})
+            pickup, ret = r.get("PickUp_Date"), r.get("Return_Date")
+            price = float(car.get("price") or 0)
+            days = compute_days(pickup, ret)
+            total_cost = round(price * days, 2)
+
+            entry = {
+                "reservation_id": r.get("id"),
+                "car_id": r.get("car_id"),
+                "model": car.get("model"),
+                "image_url": car.get("image_url"),
+                "type": car.get("type"),
+                "seats": car.get("seats"),
+                "PickUp_Date": pickup,
+                "Return_Date": ret,
+                "Pickup_Location": r.get("Pickup_Location"),
+                "Return_Location": r.get("Return_Location"),
+                "total_cost": total_cost,
+            }
+
+            if ret and ret < today_str:
+                history.append(entry)
+            else:
+                upcoming.append(entry)
+
+        upcoming.sort(key=lambda e: e["PickUp_Date"] or "")
+        history.sort(key=lambda e: e["Return_Date"] or "", reverse=True)
+
+        return jsonify({"upcoming": upcoming, "history": history}), 200
+    except Exception as e:
+        print("Get user reservations error:", e)
+        return jsonify({"error": "Failed to fetch reservations."}), 500
+
 
 # ===== Frontend routes =====
 @app.route("/home")
@@ -250,9 +309,11 @@ def create_reservation():
 def home():
     return send_from_directory(FRONTEND_DIR, "home.html")
 
+
 @app.route("/")
 def index():
     return send_from_directory(FRONTEND_DIR, "index.html")
+
 
 @app.route("/<path:filename>")
 def frontend_files(filename):

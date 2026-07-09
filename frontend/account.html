@@ -2,9 +2,69 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Account · RentalRide</title>
+  <link rel="stylesheet" href="home_style.css">
+  <link rel="stylesheet" href="account_style.css">
+  <link rel="icon" href="./favicon.ico" type="image/x-icon">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Account page placeholder -->
+  <!-- ── HEADER ── -->
+  <header class="site-header">
+    <a href="home.html"><img src="./logo.png" alt="RentalRide" class="logo"></a>
+    <div class="user-controls">
+      <button class="account-btn account-btn--active" id="accountBtn" title="My Account">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span id="userFirstName">Account</span>
+      </button>
+      <button class="btn-logout" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <!-- ── MY RESERVATIONS ── -->
+  <main class="account-main">
+    <div class="account-heading">
+      <h1>My Reservations</h1>
+      <p>Keep track of your upcoming trips and past rentals.</p>
+    </div>
+
+    <!-- UPCOMING -->
+    <section class="res-section">
+      <h2 class="res-section-title">Upcoming</h2>
+      <div class="res-table" id="upcomingTable">
+        <div class="res-table-head">
+          <span class="res-col res-col--car">Car</span>
+          <span class="res-col res-col--dates">Rental Dates</span>
+          <span class="res-col res-col--location">Location:</span>
+          <span class="res-col res-col--cost">Total Cost</span>
+        </div>
+        <div class="res-list" id="upcomingList">
+          <div class="res-loading"><div class="spinner"></div><p>Loading reservations…</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RENTAL HISTORY -->
+    <section class="res-section">
+      <h2 class="res-section-title">Rental History</h2>
+      <div class="res-table" id="historyTable">
+        <div class="res-table-head">
+          <span class="res-col res-col--car">Car</span>
+          <span class="res-col res-col--dates">Rental Dates</span>
+          <span class="res-col res-col--location">Location:</span>
+          <span class="res-col res-col--cost">Total Cost</span>
+        </div>
+        <div class="res-list" id="historyList">
+          <div class="res-loading"><div class="spinner"></div><p>Loading reservations…</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="api.js"></script>
+  <script src="account_script.js"></script>
 </body>
 </html>

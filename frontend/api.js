@@ -1,18 +1,16 @@
-const BASE_URL = 'http://127.0.0.1:5000';  // single backend - app.py
+const BASE_URL = 'http://127.0.0.1:5000'; // single backend - app.py
 
 /* ===== Low Level Helpers =====
-- Internal wrapper around fetch.
-- Returns { ok, status, data } never throws.
-- Callers check "ok" and read "data" or "data.error"
+   - Internal wrapper around fetch.
+   - Returns { ok, status, data } never throws.
+   - Callers check "ok" and read "data" or "data.error"
 */
-
 async function _request(url, options = {}) {
   try {
     const res = await fetch(url, {
       headers: { 'Content-Type': 'application/json' },
       ...options,
     });
-
     let data;
     const contentType = res.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
@@ -20,20 +18,18 @@ async function _request(url, options = {}) {
     } else {
       data = { message: await res.text() };
     }
-
     return { ok: res.ok, status: res.status, data };
   } catch (err) {
     console.error('[API] Network error:', err);
     return {
-      ok:     false,
+      ok: false,
       status: 0,
-      data:   { error: 'Could not reach the server. Make sure your backend is running.' },
+      data: { error: 'Could not reach the server. Make sure your backend is running.' },
     };
   }
 }
 
 const API = {
-
   /* AUTH for login */
 
   /**
@@ -44,7 +40,7 @@ const API = {
   register(payload) {
     return _request(`${BASE_URL}/register`, {
       method: 'POST',
-      body:   JSON.stringify(payload),
+      body: JSON.stringify(payload),
     });
   },
 
@@ -56,7 +52,7 @@ const API = {
   login(payload) {
     return _request(`${BASE_URL}/login`, {
       method: 'POST',
-      body:   JSON.stringify(payload),
+      body: JSON.stringify(payload),
     });
   },
 
@@ -68,6 +64,16 @@ const API = {
    */
   getUser(userId) {
     return _request(`${BASE_URL}/api/users/${userId}`);
+  },
+
+  /**
+   * GET /api/reservations/:user_id — a user's reservations, already split
+   * into "upcoming" and "history" and joined with each car's model/image/price.
+   * @param {string|number} userId
+   * @returns {{ ok, status, data: { upcoming: Reservation[], history: Reservation[] } }}
+   */
+  getUserReservations(userId) {
+    return _request(`${BASE_URL}/api/reservations/${userId}`);
   },
 
   /* Cars Search */
@@ -82,7 +88,7 @@ const API = {
   },
 
   /**
-   * GET /cars  (with optional filters)
+   * GET /cars (with optional filters)
    * Passing startDate/endDate also asks the backend to omit any car whose
    * existing reservations collide with that range, and every returned car
    * carries a 'reservations' array (its own already-booked date ranges) so
@@ -93,16 +99,14 @@ const API = {
    */
   getCars({ model = '', type = '', seats = '', location = '', startDate = '', endDate = '' } = {}) {
     const params = new URLSearchParams();
-    if (model)     params.append('model', model);
-    if (type)      params.append('type',  type);
-    if (seats)     params.append('seats', seats);
-    if (location)  params.append('location', location);
+    if (model) params.append('model', model);
+    if (type) params.append('type', type);
+    if (seats) params.append('seats', seats);
+    if (location) params.append('location', location);
     if (startDate) params.append('start_date', startDate);
-    if (endDate)   params.append('end_date', endDate);
-
-    const qs  = params.toString();
+    if (endDate) params.append('end_date', endDate);
+    const qs = params.toString();
     const url = qs ? `${BASE_URL}/cars?${qs}` : `${BASE_URL}/cars`;
-
     return _request(url);
   },
 
@@ -116,8 +120,7 @@ const API = {
   createReservation(payload) {
     return _request(`${BASE_URL}/api/reservations`, {
       method: 'POST',
-      body:   JSON.stringify(payload),
+      body: JSON.stringify(payload),
     });
   },
-
 };
