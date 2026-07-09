@@ -5,7 +5,7 @@ let selectedCar = null;
 (function initHeaderUser() {
   const firstName = sessionStorage.getItem('first_name');
   const nameEl = document.getElementById('userFirstName');
-  if (nameEl) nameEl.textContent = firstName || 'Account';
+  if (nameEl) nameEl.textContent = firstName ? `Hello, ${firstName}` : 'Account';
 })();
 
 document.getElementById('accountBtn').addEventListener('click', () => {
@@ -212,9 +212,16 @@ document.getElementById('clearFilters').addEventListener('click', () => {
   loadCars();
 });
 
-/* Keep filter end-date min in sync with start-date */
+/* Keep filter end-date min in sync with start-date, and re-run the search
+   automatically once both dates are set so the grid never shows cars that
+   are actually unavailable for the currently-selected range. */
 document.getElementById('filterStartDate').addEventListener('change', function () {
   document.getElementById('filterEndDate').min = this.value;
+  if (document.getElementById('filterEndDate').value) applyFilters();
+});
+
+document.getElementById('filterEndDate').addEventListener('change', () => {
+  if (document.getElementById('filterStartDate').value) applyFilters();
 });
 
 /* ==== LOCATION COMBOBOX (typeahead city search) ==== */
