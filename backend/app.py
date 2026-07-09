@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from supabase import create_client
+from email_sender import send_confirmation_email
 from dotenv import load_dotenv
 from datetime import datetime, date
 import hashlib
@@ -192,6 +193,16 @@ def get_cars():
 
 
 # ===== Cars Reservations =====
+def _compute_days(pickup, ret):
+    """Shared helper: number of rental days between two YYYY-MM-DD strings."""
+    try:
+        d1 = datetime.strptime(pickup, "%Y-%m-%d")
+        d2 = datetime.strptime(ret, "%Y-%m-%d")
+        return max((d2 - d1).days, 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 @app.route("/api/reservations", methods=["POST"])
 def create_reservation():
     try:
@@ -237,7 +248,17 @@ def create_reservation():
         if not result.data:
             return jsonify({"error": "Failed to save reservation."}), 500
 
-        return jsonify({"message": "Reservation confirmed!", "reservation": result.data[0]}), 201
+        reservation = result.data[0]
+
+        # Sends booking confirmation email right after a successful booking
+        # Any failure here should never block the reservation itself from
+        # succeeding, so it's wrapped in its own try/except.
+        try:
+            _send_booking_confirmation(reservation)
+        except Exception:
+            traceback.print_exc()
+
+        return jsonify({"message": "Reservation confirmed!", "reservation": reservation}), 201
 
     except Exception as e:
         print("Reservation error:", e)
@@ -300,14 +321,6 @@ def get_user_reservations(user_id):
 
         today_str = date.today().isoformat()
 
-        def compute_days(pickup, ret):
-            try:
-                d1 = datetime.strptime(pickup, "%Y-%m-%d")
-                d2 = datetime.strptime(ret, "%Y-%m-%d")
-                return max((d2 - d1).days, 0)
-            except (TypeError, ValueError):
-                return 0
-
         upcoming, history = [], []
         for r in res_rows:
             # Cast the reservation's car_id to str too, so it actually
@@ -315,7 +328,7 @@ def get_user_reservations(user_id):
             car = cars_by_id.get(str(r.get("car_id")), {})
             pickup, ret = r.get("PickUp_Date"), r.get("Return_Date")
             price = float(car.get("price") or 0)
-            days = compute_days(pickup, ret)
+            days = _compute_days(pickup, ret)
             total_cost = round(price * days, 2)
 
             entry = {
@@ -345,6 +358,80 @@ def get_user_reservations(user_id):
     except Exception as e:
         print("Get user reservations error:", e)
         return jsonify({"error": "Failed to fetch reservations."}), 500
+
+
+# ===== Booking Confirmation =====
+def _build_booking_payload(reservation):
+    """
+    Builds the dict that email_sender.send_confirmation_email expects,
+    using ONLY real data joined from reservations + cars + users.
+    reservation must at least have: id, user_id, car_id, PickUp_Date,
+    Return_Date, Pickup_Location.
+    """
+    car = supabase.table("cars").select("*").eq("id", reservation["car_id"]).single().execute().data or {}
+    user = supabase.table("users").select("*").eq("id", reservation["user_id"]).single().execute().data or {}
+
+    pickup = reservation.get("PickUp_Date")
+    ret = reservation.get("Return_Date")
+    days = _compute_days(pickup, ret)
+    price = float(car.get("price") or 0)
+    total_price = round(price * days, 2)
+
+    customer_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or "Customer"
+
+    return {
+        "customer_name": customer_name,
+        "customer_email": user.get("email"),
+        "vehicle_name": car.get("model") or "Vehicle",
+        "pickup_location": reservation.get("Pickup_Location"),
+        "start_date": pickup,
+        "end_date": ret,
+        "total_price": total_price,
+        "status": "Confirmed",
+    }
+
+def _send_booking_confirmation(reservation):
+    booking = _build_booking_payload(reservation)
+    if not booking["customer_email"]:
+        print("Booking confirmation skipped: no email on file for this user.")
+        return
+    send_confirmation_email(booking)
+
+
+@app.route("/confirm-booking", methods=["POST"])
+def confirm_booking():
+    """
+    Manually (re)send a confirmation email for an existing reservation.
+    Body: { "reservation_id": <id> }
+    """
+    try:
+        data = request.json or {}
+        reservation_id = data.get("reservation_id") or data.get("booking_id")
+        if not reservation_id:
+            return jsonify({"error": "'reservation_id' is required."}), 400
+
+        response = (
+            supabase.table("reservations")
+            .select("*")
+            .eq("id", reservation_id)
+            .single()
+            .execute()
+        )
+        reservation = response.data
+
+        if not reservation:
+            return jsonify({"error": "Booking not found."}), 404
+
+        booking = _build_booking_payload(reservation)
+        if not booking["customer_email"]:
+            return jsonify({"error": "No email on file for this user."}), 400
+
+        send_confirmation_email(booking)
+        return jsonify({"message": "Confirmation email sent!"}), 200
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 # ===== Frontend routes =====
