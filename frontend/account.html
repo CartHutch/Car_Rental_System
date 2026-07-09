@@ -40,6 +40,7 @@
           <span class="res-col res-col--dates">Rental Dates</span>
           <span class="res-col res-col--location">Location:</span>
           <span class="res-col res-col--cost">Total Cost</span>
+          <span class="res-col res-col--actions"></span>
         </div>
         <div class="res-list" id="upcomingList">
           <div class="res-loading"><div class="spinner"></div><p>Loading reservations…</p></div>
@@ -56,6 +57,7 @@
           <span class="res-col res-col--dates">Rental Dates</span>
           <span class="res-col res-col--location">Location:</span>
           <span class="res-col res-col--cost">Total Cost</span>
+          <span class="res-col res-col--actions"></span>
         </div>
         <div class="res-list" id="historyList">
           <div class="res-loading"><div class="spinner"></div><p>Loading reservations…</p></div>
@@ -63,6 +65,23 @@
       </div>
     </section>
   </main>
+
+  <!-- CANCEL RESERVATION CONFIRMATION MODAL -->
+  <div class="modal-overlay notice-overlay" id="cancelModalOverlay" hidden>
+    <div class="notice-card">
+      <button type="button" class="modal-close modal-close--dark" id="cancelModalCloseBtn" aria-label="Close">✕</button>
+      <div class="notice-icon notice-icon--warn">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <h3 class="notice-title">Cancel Reservation?</h3>
+      <p class="notice-message" id="cancelModalMessage">Are you sure you want to cancel this reservation? This can't be undone.</p>
+      <div class="notice-message" id="cancelModalError" style="display:none; color:#c0392b; margin-bottom:14px;"></div>
+      <div class="cancel-modal-actions">
+        <button type="button" class="btn-keep" id="cancelModalKeepBtn">Keep Reservation</button>
+        <button type="button" class="btn-confirm-cancel" id="cancelModalConfirmBtn">Yes, Cancel It</button>
+      </div>
+    </div>
+  </div>
 
   <script src="api.js"></script>
   <script src="account_script.js"></script>

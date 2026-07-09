@@ -8,6 +8,7 @@ import os
 import traceback
 
 load_dotenv()
+
 app = Flask(__name__)
 CORS(app)
 
@@ -80,6 +81,7 @@ def login():
         data = request.json
         email = (data.get("email") or "").strip().lower()
         password = (data.get("password") or "").strip()
+
         if not email or not password:
             return jsonify({"error": "Email and password are required."}), 400
 
@@ -92,6 +94,7 @@ def login():
             .eq("password", password_hash)
             .execute()
         )
+
         if not result.data:
             return jsonify({"error": "Invalid email or password."}), 401
 
@@ -141,7 +144,9 @@ def get_cars():
             query = query.ilike("location", f"%{location}%")
 
         cars = query.execute().data or []
-        car_ids = [c["id"] for c in cars]
+        # Normalize to strings so this always matches how reservations.car_id
+        # is looked up/stored elsewhere (see create_reservation / get_user_reservations).
+        car_ids = [str(c["id"]) for c in cars]
 
         # Pull existing reservations for these cars so we can (a) filter out
         # cars that collide with the requested date range, and (b) attach
@@ -157,7 +162,7 @@ def get_cars():
                 or []
             )
             for r in res_rows:
-                reservations_by_car.setdefault(r["car_id"], []).append({
+                reservations_by_car.setdefault(str(r["car_id"]), []).append({
                     "PickUp_Date": r["PickUp_Date"],
                     "Return_Date": r["Return_Date"],
                 })
@@ -168,7 +173,7 @@ def get_cars():
 
         result_cars = []
         for c in cars:
-            car_reservations = reservations_by_car.get(c["id"], [])
+            car_reservations = reservations_by_car.get(str(c["id"]), [])
             c["reservations"] = car_reservations
             if start_date and end_date:
                 collides = any(
@@ -180,6 +185,7 @@ def get_cars():
             result_cars.append(c)
 
         return jsonify(result_cars), 200
+
     except Exception as e:
         print("Get cars error:", e)
         return jsonify({"error": "Failed to fetch cars."}), 500
@@ -195,6 +201,11 @@ def create_reservation():
             if not data.get(field):
                 return jsonify({"error": f"'{field}' is required."}), 400
 
+        # Normalize car_id to a string so it always matches how we look it
+        # up elsewhere (cars_by_id in get_user_reservations, reservations_by_car
+        # in get_cars, etc). This is what prevents "car_id type drift" bugs.
+        car_id = str(data["car_id"]).strip()
+
         # Basic date valid check
         if data["Return_Date"] <= data["PickUp_Date"]:
             return jsonify({"error": "Return date must be after pick-up date."}), 400
@@ -204,7 +215,7 @@ def create_reservation():
         existing = (
             supabase.table("reservations")
             .select("PickUp_Date, Return_Date")
-            .eq("car_id", data["car_id"])
+            .eq("car_id", car_id)
             .execute()
             .data
             or []
@@ -215,7 +226,7 @@ def create_reservation():
 
         new_reservation = {
             "user_id": data.get("user_id"),
-            "car_id": data.get("car_id"),
+            "car_id": car_id,
             "PickUp_Date": data.get("PickUp_Date"),
             "Return_Date": data.get("Return_Date"),
             "Pickup_Location": data.get("Pickup_Location"),
@@ -227,8 +238,38 @@ def create_reservation():
             return jsonify({"error": "Failed to save reservation."}), 500
 
         return jsonify({"message": "Reservation confirmed!", "reservation": result.data[0]}), 201
+
     except Exception as e:
         print("Reservation error:", e)
+        return jsonify({"error": "An unexpected error occurred."}), 500
+
+
+@app.route("/api/reservations/<reservation_id>", methods=["DELETE"])
+def cancel_reservation(reservation_id):
+    try:
+        user_id = request.args.get("user_id")
+
+        query = supabase.table("reservations").select("id, user_id").eq("id", reservation_id)
+        existing = query.execute().data or []
+        if not existing:
+            return jsonify({"error": "Reservation not found."}), 404
+
+        if user_id and str(existing[0].get("user_id")) != str(user_id):
+            return jsonify({"error": "You are not authorized to cancel this reservation."}), 403
+        
+        # Perform the deletion
+        result = supabase.table("reservations").delete().eq("id", reservation_id).execute()
+
+        # Check if an error occurred during the Supabase operation
+        if hasattr(result, 'error') and result.error:
+            print("Database error:", result.error)
+            return jsonify({"error": "Failed to cancel reservation due to a database error."}), 500
+
+        # If there is no error, the deletion is successful
+        return jsonify({"message": "Reservation cancelled."}), 200
+
+    except Exception as e:
+        print("Cancel reservation error:", e)
         return jsonify({"error": "An unexpected error occurred."}), 500
 
 
@@ -269,7 +310,9 @@ def get_user_reservations(user_id):
 
         upcoming, history = [], []
         for r in res_rows:
-            car = cars_by_id.get(r.get("car_id"), {})
+            # Cast the reservation's car_id to str too, so it actually
+            # matches the string keys in cars_by_id above.
+            car = cars_by_id.get(str(r.get("car_id")), {})
             pickup, ret = r.get("PickUp_Date"), r.get("Return_Date")
             price = float(car.get("price") or 0)
             days = compute_days(pickup, ret)
@@ -298,6 +341,7 @@ def get_user_reservations(user_id):
         history.sort(key=lambda e: e["Return_Date"] or "", reverse=True)
 
         return jsonify({"upcoming": upcoming, "history": history}), 200
+
     except Exception as e:
         print("Get user reservations error:", e)
         return jsonify({"error": "Failed to fetch reservations."}), 500

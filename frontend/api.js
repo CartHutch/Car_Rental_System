@@ -76,6 +76,20 @@ const API = {
     return _request(`${BASE_URL}/api/reservations/${userId}`);
   },
 
+  /**
+   * DELETE /api/reservations/:reservation_id — cancels a single reservation.
+   * Passing userId scopes the cancel so a user can only cancel their own booking.
+   * @param {string|number} reservationId
+   * @param {string|number} [userId]
+   * @returns {{ ok, status, data: { message } | { error } }}
+   */
+  cancelReservation(reservationId, userId) {
+    const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
+    return _request(`${BASE_URL}/api/reservations/${reservationId}${qs}`, {
+      method: 'DELETE',
+    });
+  },
+
   /* Cars Search */
 
   /**
