@@ -60,18 +60,45 @@ const API = {
     });
   },
 
+  /* Account info */
+
+  /**
+   * GET /api/users/:id
+   * @param {string|number} userId
+   */
+  getUser(userId) {
+    return _request(`${BASE_URL}/api/users/${userId}`);
+  },
+
   /* Cars Search */
 
   /**
+   * GET /locations — distinct list of car pickup/drop-off cities, for the
+   * location typeahead filter.
+   * @returns {{ ok, status, data: string[] }}
+   */
+  getLocations() {
+    return _request(`${BASE_URL}/locations`);
+  },
+
+  /**
    * GET /cars  (with optional filters)
-   * @param {{ model?: string, type?: string, seats?: string|number }} filters
+   * Passing startDate/endDate also asks the backend to omit any car whose
+   * existing reservations collide with that range, and every returned car
+   * carries a 'reservations' array (its own already-booked date ranges) so
+   * the UI can render "already booked" tags regardless of filtering.
+   * @param {{ model?: string, type?: string, seats?: string|number,
+   *           location?: string, startDate?: string, endDate?: string }} filters
    * @returns {{ ok, status, data: Car[] }}
    */
-  getCars({ model = '', type = '', seats = '' } = {}) {
+  getCars({ model = '', type = '', seats = '', location = '', startDate = '', endDate = '' } = {}) {
     const params = new URLSearchParams();
-    if (model) params.append('model', model);
-    if (type)  params.append('type',  type);
-    if (seats) params.append('seats', seats);
+    if (model)     params.append('model', model);
+    if (type)      params.append('type',  type);
+    if (seats)     params.append('seats', seats);
+    if (location)  params.append('location', location);
+    if (startDate) params.append('start_date', startDate);
+    if (endDate)   params.append('end_date', endDate);
 
     const qs  = params.toString();
     const url = qs ? `${BASE_URL}/cars?${qs}` : `${BASE_URL}/cars`;
