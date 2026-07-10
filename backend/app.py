@@ -7,7 +7,15 @@ import hashlib
 import os
 import traceback
 
+# smtplib is Python's built in email sending library
+import smtplib
+
+# These two help us build the email with both HTML and plain text
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 load_dotenv()
+
 app = Flask(__name__)
 CORS(app)
 
@@ -34,6 +42,22 @@ def register():
         # Strip password too, so a stray leading/trailing space (e.g. from
         # autofill) can't create a hash mismatch between signup and login.
         password = data["password"].strip()
+
+        # Enforce minimum age 16 (Canada learner's permit / driving age)
+        # server-side too, since the client-side date picker restriction
+        # can be bypassed by calling this endpoint directly.
+        dob_str = (data.get("dob") or "").strip()
+        if not dob_str:
+            return jsonify({"error": "Date of birth is required."}), 400
+        try:
+            dob = datetime.strptime(dob_str, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "Invalid date of birth."}), 400
+
+        today = date.today()
+        cutoff = today.replace(year=today.year - 16)
+        if dob > cutoff:
+            return jsonify({"error": "You must be at least 16 years old to sign up."}), 400
 
         # Check if email already exists
         existing = supabase.table("users").select("id").eq("email", email).execute()
@@ -80,6 +104,7 @@ def login():
         data = request.json
         email = (data.get("email") or "").strip().lower()
         password = (data.get("password") or "").strip()
+
         if not email or not password:
             return jsonify({"error": "Email and password are required."}), 400
 
@@ -92,6 +117,7 @@ def login():
             .eq("password", password_hash)
             .execute()
         )
+
         if not result.data:
             return jsonify({"error": "Invalid email or password."}), 401
 
@@ -141,7 +167,9 @@ def get_cars():
             query = query.ilike("location", f"%{location}%")
 
         cars = query.execute().data or []
-        car_ids = [c["id"] for c in cars]
+        # Normalize to strings so this always matches how reservations.car_id
+        # is looked up/stored elsewhere (see create_reservation / get_user_reservations).
+        car_ids = [str(c["id"]) for c in cars]
 
         # Pull existing reservations for these cars so we can (a) filter out
         # cars that collide with the requested date range, and (b) attach
@@ -157,7 +185,7 @@ def get_cars():
                 or []
             )
             for r in res_rows:
-                reservations_by_car.setdefault(r["car_id"], []).append({
+                reservations_by_car.setdefault(str(r["car_id"]), []).append({
                     "PickUp_Date": r["PickUp_Date"],
                     "Return_Date": r["Return_Date"],
                 })
@@ -168,7 +196,7 @@ def get_cars():
 
         result_cars = []
         for c in cars:
-            car_reservations = reservations_by_car.get(c["id"], [])
+            car_reservations = reservations_by_car.get(str(c["id"]), [])
             c["reservations"] = car_reservations
             if start_date and end_date:
                 collides = any(
@@ -180,12 +208,23 @@ def get_cars():
             result_cars.append(c)
 
         return jsonify(result_cars), 200
+
     except Exception as e:
         print("Get cars error:", e)
         return jsonify({"error": "Failed to fetch cars."}), 500
 
 
 # ===== Cars Reservations =====
+def _compute_days(pickup, ret):
+    """Shared helper: number of rental days between two YYYY-MM-DD strings."""
+    try:
+        d1 = datetime.strptime(pickup, "%Y-%m-%d")
+        d2 = datetime.strptime(ret, "%Y-%m-%d")
+        return max((d2 - d1).days, 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 @app.route("/api/reservations", methods=["POST"])
 def create_reservation():
     try:
@@ -194,6 +233,23 @@ def create_reservation():
         for field in required:
             if not data.get(field):
                 return jsonify({"error": f"'{field}' is required."}), 400
+
+        # A reservation must belong to a real, logged-in user. The frontend
+        # gates the Reserve flow behind login, but that's only a UX nicety —
+        # anyone can call this endpoint directly, so it has to be enforced
+        # here too.
+        user_id = data.get("user_id")
+        if not user_id:
+            return jsonify({"error": "You must be logged in to make a reservation."}), 401
+
+        user_check = supabase.table("users").select("id").eq("id", user_id).execute().data or []
+        if not user_check:
+            return jsonify({"error": "You must be logged in to make a reservation."}), 401
+
+        # Normalize car_id to a string so it always matches how we look it
+        # up elsewhere (cars_by_id in get_user_reservations, reservations_by_car
+        # in get_cars, etc). This is what prevents "car_id type drift" bugs.
+        car_id = str(data["car_id"]).strip()
 
         # Basic date valid check
         if data["Return_Date"] <= data["PickUp_Date"]:
@@ -204,7 +260,7 @@ def create_reservation():
         existing = (
             supabase.table("reservations")
             .select("PickUp_Date, Return_Date")
-            .eq("car_id", data["car_id"])
+            .eq("car_id", car_id)
             .execute()
             .data
             or []
@@ -215,7 +271,7 @@ def create_reservation():
 
         new_reservation = {
             "user_id": data.get("user_id"),
-            "car_id": data.get("car_id"),
+            "car_id": car_id,
             "PickUp_Date": data.get("PickUp_Date"),
             "Return_Date": data.get("Return_Date"),
             "Pickup_Location": data.get("Pickup_Location"),
@@ -226,9 +282,49 @@ def create_reservation():
         if not result.data:
             return jsonify({"error": "Failed to save reservation."}), 500
 
-        return jsonify({"message": "Reservation confirmed!", "reservation": result.data[0]}), 201
+        reservation = result.data[0]
+
+        # Sends booking confirmation email right after a successful booking
+        # Any failure here should never block the reservation itself from
+        # succeeding, so it's wrapped in its own try/except.
+        try:
+            _send_booking_confirmation(reservation)
+        except Exception:
+            traceback.print_exc()
+
+        return jsonify({"message": "Reservation confirmed!", "reservation": reservation}), 201
+
     except Exception as e:
         print("Reservation error:", e)
+        return jsonify({"error": "An unexpected error occurred."}), 500
+
+
+@app.route("/api/reservations/<reservation_id>", methods=["DELETE"])
+def cancel_reservation(reservation_id):
+    try:
+        user_id = request.args.get("user_id")
+
+        query = supabase.table("reservations").select("id, user_id").eq("id", reservation_id)
+        existing = query.execute().data or []
+        if not existing:
+            return jsonify({"error": "Reservation not found."}), 404
+
+        if user_id and str(existing[0].get("user_id")) != str(user_id):
+            return jsonify({"error": "You are not authorized to cancel this reservation."}), 403
+        
+        # Perform the deletion
+        result = supabase.table("reservations").delete().eq("id", reservation_id).execute()
+
+        # Check if an error occurred during the Supabase operation
+        if hasattr(result, 'error') and result.error:
+            print("Database error:", result.error)
+            return jsonify({"error": "Failed to cancel reservation due to a database error."}), 500
+
+        # If there is no error, the deletion is successful
+        return jsonify({"message": "Reservation cancelled."}), 200
+
+    except Exception as e:
+        print("Cancel reservation error:", e)
         return jsonify({"error": "An unexpected error occurred."}), 500
 
 
@@ -259,20 +355,14 @@ def get_user_reservations(user_id):
 
         today_str = date.today().isoformat()
 
-        def compute_days(pickup, ret):
-            try:
-                d1 = datetime.strptime(pickup, "%Y-%m-%d")
-                d2 = datetime.strptime(ret, "%Y-%m-%d")
-                return max((d2 - d1).days, 0)
-            except (TypeError, ValueError):
-                return 0
-
         upcoming, history = [], []
         for r in res_rows:
-            car = cars_by_id.get(r.get("car_id"), {})
+            # Cast the reservation's car_id to str too, so it actually
+            # matches the string keys in cars_by_id above.
+            car = cars_by_id.get(str(r.get("car_id")), {})
             pickup, ret = r.get("PickUp_Date"), r.get("Return_Date")
             price = float(car.get("price") or 0)
-            days = compute_days(pickup, ret)
+            days = _compute_days(pickup, ret)
             total_cost = round(price * days, 2)
 
             entry = {
@@ -298,9 +388,216 @@ def get_user_reservations(user_id):
         history.sort(key=lambda e: e["Return_Date"] or "", reverse=True)
 
         return jsonify({"upcoming": upcoming, "history": history}), 200
+
     except Exception as e:
         print("Get user reservations error:", e)
         return jsonify({"error": "Failed to fetch reservations."}), 500
+
+
+# ===== Booking Confirmation =====
+def _build_booking_payload(reservation):
+    """
+    Builds the dict that email_sender.send_confirmation_email expects,
+    using ONLY real data joined from reservations + cars + users.
+    reservation must at least have: id, user_id, car_id, PickUp_Date,
+    Return_Date, Pickup_Location.
+    """
+    car = supabase.table("cars").select("*").eq("id", reservation["car_id"]).single().execute().data or {}
+    user = supabase.table("users").select("*").eq("id", reservation["user_id"]).single().execute().data or {}
+
+    pickup = reservation.get("PickUp_Date")
+    ret = reservation.get("Return_Date")
+    days = _compute_days(pickup, ret)
+    price = float(car.get("price") or 0)
+    total_price = round(price * days, 2)
+
+    customer_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or "Customer"
+
+    return {
+        "customer_name": customer_name,
+        "customer_email": user.get("email"),
+        "vehicle_name": car.get("model") or "Vehicle",
+        "pickup_location": reservation.get("Pickup_Location"),
+        "start_date": pickup,
+        "end_date": ret,
+        "total_price": total_price,
+        "status": "Confirmed",
+    }
+
+def send_confirmation_email(booking):
+    """
+    Sends the booking confirmation email. Takes a booking dict built by
+    _build_booking_payload() and emails the customer via Gmail SMTP.
+    (Formerly lived in email_sender.py — merged directly into app.py.)
+    """
+
+    # Read Gmail credentials from .env
+    sender = os.getenv("GMAIL_ADDRESS")
+    password = os.getenv("GMAIL_APP_PASSWORD")
+
+    recipient = booking["customer_email"]
+
+    # Create the email object
+    # 'alternative' means it can hold both plain text and HTML versions
+    msg = MIMEMultipart("alternative")
+
+    # Set the subject line, who it's from, and who it's going to
+    msg["Subject"] = f"Booking Confirmation - {booking['vehicle_name']}"
+    msg["From"] = sender
+    msg["To"] = recipient
+
+    status = booking.get("status", "Confirmed")
+
+    # This is the actual email body written in HTML, styled to match
+    # RentalRide's branding (dark navy header, clean details table,
+    # green status badge, light footer).
+    html = f"""
+    <html>
+    <body style="margin:0; padding:0; background-color:#f2f4f8; font-family: 'Segoe UI', Arial, sans-serif;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f2f4f8; padding:32px 0;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.06);">
+
+                        <!-- Header -->
+                        <tr>
+                            <td style="background-color:#0b1f4b; padding:28px 32px;">
+                                <div style="color:#ffffff; font-size:22px; font-weight:700;">RentalRide</div>
+                                <div style="color:#a9b6d6; font-size:13px; margin-top:4px;">Car Rental Management System</div>
+                            </td>
+                        </tr>
+
+                        <!-- Body -->
+                        <tr>
+                            <td style="padding:32px;">
+                                <h2 style="margin:0 0 16px; color:#0b1f4b; font-size:20px;">Booking Confirmed!</h2>
+
+                                <p style="margin:0 0 12px; color:#222; font-size:14px; line-height:1.6;">
+                                    Hi <strong>{booking['customer_name']}</strong>,
+                                </p>
+                                <p style="margin:0 0 20px; color:#222; font-size:14px; line-height:1.6;">
+                                    Your booking has been confirmed. Here is a summary of your reservation details below.
+                                </p>
+
+                                <!-- Booking Details table -->
+                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ee; border-radius:8px; overflow:hidden;">
+                                    <tr>
+                                        <td colspan="2" style="background-color:#0b1f4b; color:#ffffff; font-size:13px; font-weight:700; padding:10px 16px;">
+                                            Booking Details
+                                        </td>
+                                    </tr>
+                                    <tr style="background-color:#f6f8fc;">
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b; width:40%;">Vehicle</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">{booking['vehicle_name']}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">Pickup Location</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">{booking['pickup_location']}</td>
+                                    </tr>
+                                    <tr style="background-color:#f6f8fc;">
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">Start Date</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">{booking['start_date']}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">End Date</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">{booking['end_date']}</td>
+                                    </tr>
+                                    <tr style="background-color:#f6f8fc;">
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">Total Price</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">${booking['total_price']}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">Status</td>
+                                        <td style="padding:12px 16px;">
+                                            <span style="background-color:#e5f7ec; color:#1e8449; font-size:12px; font-weight:700; padding:4px 12px; border-radius:12px; display:inline-block;">
+                                                {status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </table>
+
+                                <p style="margin:24px 0 0; color:#444; font-size:13px; line-height:1.6;">
+                                    If you have any questions about your booking, please don't hesitate to reach out to us.
+                                </p>
+                                <p style="margin:12px 0 0; color:#444; font-size:13px; line-height:1.6;">
+                                    Thank you for choosing <strong>RentalRide</strong>!
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- Footer -->
+                        <tr>
+                            <td style="background-color:#f6f8fc; padding:18px 32px; text-align:center; border-top:1px solid #e4e7ee;">
+                                <p style="margin:0; color:#9099ab; font-size:11px;">
+                                    This is an automated confirmation email. Please do not reply directly to this message.
+                                </p>
+                                <p style="margin:4px 0 0; color:#9099ab; font-size:11px;">
+                                    &copy; 2026 RentalRide — Car Rental Management System
+                                </p>
+                            </td>
+                        </tr>
+
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+
+    # Attach the HTML to the email
+    msg.attach(MIMEText(html, "html"))
+
+    # Connect to Gmail's server and send the email
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        # Log into Gmail using your credentials from .env
+        server.login(sender, password)
+        # Actually send the email
+        server.sendmail(sender, recipient, msg.as_string())
+
+
+def _send_booking_confirmation(reservation):
+    booking = _build_booking_payload(reservation)
+    if not booking["customer_email"]:
+        print("Booking confirmation skipped: no email on file for this user.")
+        return
+    send_confirmation_email(booking)
+
+
+@app.route("/confirm-booking", methods=["POST"])
+def confirm_booking():
+    """
+    Manually (re)send a confirmation email for an existing reservation.
+    Body: { "reservation_id": <id> }
+    """
+    try:
+        data = request.json or {}
+        reservation_id = data.get("reservation_id") or data.get("booking_id")
+        if not reservation_id:
+            return jsonify({"error": "'reservation_id' is required."}), 400
+
+        response = (
+            supabase.table("reservations")
+            .select("*")
+            .eq("id", reservation_id)
+            .single()
+            .execute()
+        )
+        reservation = response.data
+
+        if not reservation:
+            return jsonify({"error": "Booking not found."}), 404
+
+        booking = _build_booking_payload(reservation)
+        if not booking["customer_email"]:
+            return jsonify({"error": "No email on file for this user."}), 400
+
+        send_confirmation_email(booking)
+        return jsonify({"message": "Confirmation email sent!"}), 200
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 # ===== Frontend routes =====
