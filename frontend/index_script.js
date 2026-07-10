@@ -21,6 +21,27 @@ function validateEmail(email) {
   return { ok: true, msg: '' };
 }
 
+/* DOB VALIDATION — must be 16+ years old as of today (Canada learner's permit age) */
+function getMaxDob() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 16);
+  return d.toISOString().split('T')[0];
+}
+
+function validateDob(dobStr) {
+  if (!dobStr) return { ok: false, msg: 'Date of birth is required.' };
+  const dob = new Date(`${dobStr}T00:00:00`);
+  if (isNaN(dob)) return { ok: false, msg: 'Please enter a valid date.' };
+
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 16);
+
+  if (dob > cutoff) {
+    return { ok: false, msg: 'You must be at least 16 years old to sign up.' };
+  }
+  return { ok: true, msg: '' };
+}
+
 function getPasswordStrength(password) {
   const checks = {
     length:  password.length >= 8,
@@ -114,6 +135,28 @@ document.addEventListener('DOMContentLoaded', () => {
       matches ? 'ok' : 'error');
   }
 
+  /* DOB — restrict picker to 16+ years old, and validate on blur */
+  const dobInput = document.getElementById('signup-dob');
+  if (dobInput) {
+    dobInput.max = getMaxDob();
+    dobInput.addEventListener('input', () => {
+      if (!dobInput.value) {
+        setInputState(dobInput, '');
+        setFieldMsg('dob-msg', '', '');
+      }
+    });
+    dobInput.addEventListener('blur', () => {
+      if (!dobInput.value) {
+        setInputState(dobInput, '');
+        setFieldMsg('dob-msg', '', '');
+        return;
+      }
+      const { ok, msg } = validateDob(dobInput.value);
+      setInputState(dobInput, ok ? 'is-valid' : 'is-error');
+      setFieldMsg('dob-msg', ok ? '✓ Looks good' : msg, ok ? 'ok' : 'error');
+    });
+  }
+
   /* Phone live validation */
   const phoneInput = document.getElementById('signup-phone');
   if (phoneInput) {
@@ -171,6 +214,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!validatePhone(phone)) {
         setFormMsg('signup-msg', 'Please enter a valid phone number.', 'error');
         setInputState(document.getElementById('signup-phone'), 'is-error');
+        return;
+      }
+
+      const dobValue = document.getElementById('signup-dob').value;
+      const { ok: dobOk, msg: dobMsg } = validateDob(dobValue);
+      if (!dobOk) {
+        setFormMsg('signup-msg', dobMsg, 'error');
+        setInputState(document.getElementById('signup-dob'), 'is-error');
         return;
       }
 
