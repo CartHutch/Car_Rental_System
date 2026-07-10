@@ -1,15 +1,26 @@
 // Page state
 let selectedCar = null;
 
-/* HEADER — show logged-in user's first name */
+function isLoggedIn() {
+  return !!sessionStorage.getItem('user_id');
+}
+
+/* HEADER — show logged-in user's first name, or prompt to sign in */
 (function initHeaderUser() {
   const firstName = sessionStorage.getItem('first_name');
   const nameEl = document.getElementById('userFirstName');
-  if (nameEl) nameEl.textContent = firstName ? `Hello, ${firstName}` : 'Account';
+  if (nameEl) nameEl.textContent = isLoggedIn() && firstName ? `Hello, ${firstName}` : 'Sign In';
+
+  const banner = document.getElementById('guestBanner');
+  if (banner) banner.hidden = isLoggedIn();
+
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) logoutBtn.hidden = !isLoggedIn();
 })();
 
 document.getElementById('accountBtn').addEventListener('click', () => {
-  window.location.href = 'account.html';
+  // Guests get sent to the login/signup page instead of the account page.
+  window.location.href = isLoggedIn() ? 'account.html' : 'index.html';
 });
 
 /* LOGOUT */
@@ -158,6 +169,11 @@ function renderCars(cars) {
   // Wire up Reserve buttons -> open modal
   grid.querySelectorAll('.btn-reserve-card').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (!isLoggedIn()) {
+        openAuthRequiredModal();
+        return;
+      }
+
       const filterStart = document.getElementById('filterStartDate').value;
       const filterEnd   = document.getElementById('filterEndDate').value;
 
@@ -212,9 +228,6 @@ document.getElementById('clearFilters').addEventListener('click', () => {
   loadCars();
 });
 
-/* Keep filter end-date min in sync with start-date, and re-run the search
-   automatically once both dates are set so the grid never shows cars that
-   are actually unavailable for the currently-selected range. */
 document.getElementById('filterStartDate').addEventListener('change', function () {
   document.getElementById('filterEndDate').min = this.value;
   if (document.getElementById('filterEndDate').value) applyFilters();
@@ -306,6 +319,27 @@ document.getElementById('noticeModalOverlay').addEventListener('click', e => {
   if (e.target.id === 'noticeModalOverlay') closeNoticeModal();
 });
 
+/* ==== SIGN-IN REQUIRED MODAL (shown when a guest tries to reserve) ==== */
+
+function openAuthRequiredModal() {
+  const overlay = document.getElementById('authRequiredModalOverlay');
+  overlay.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeAuthRequiredModal() {
+  document.getElementById('authRequiredModalOverlay').hidden = true;
+  document.body.style.overflow = '';
+}
+
+document.getElementById('authRequiredCloseBtn').addEventListener('click', closeAuthRequiredModal);
+document.getElementById('authRequiredGoBtn').addEventListener('click', () => {
+  window.location.href = 'index.html';
+});
+document.getElementById('authRequiredModalOverlay').addEventListener('click', e => {
+  if (e.target.id === 'authRequiredModalOverlay') closeAuthRequiredModal();
+});
+
 /* ==== RESERVE MODAL ==== */
 
 function openReserveModal() {
@@ -356,6 +390,8 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   const notice = document.getElementById('noticeModalOverlay');
   if (!notice.hidden) { closeNoticeModal(); return; }
+  const authRequired = document.getElementById('authRequiredModalOverlay');
+  if (!authRequired.hidden) { closeAuthRequiredModal(); return; }
   const overlay = document.getElementById('reserveModalOverlay');
   if (!overlay.hidden) closeReserveModal();
 });
@@ -387,6 +423,15 @@ function updateCostEstimate() {
 document.getElementById('reserveForm').addEventListener('submit', async e => {
   e.preventDefault();
   setFormMsg('reserve-msg', '', '');
+
+  // Defense in depth: re-check login right before submitting, in case the
+  // session was cleared (e.g. logged out in another tab) while this modal
+  // was open.
+  if (!isLoggedIn()) {
+    closeReserveModal();
+    openAuthRequiredModal();
+    return;
+  }
 
   const carId      = document.getElementById('res-carId').value.trim();
   const pickupDate = document.getElementById('filterStartDate').value;
@@ -420,9 +465,11 @@ document.getElementById('reserveForm').addEventListener('submit', async e => {
 
   setLoading('reserve-btn', true);
 
+  const userId = sessionStorage.getItem('user_id');
+
   // API CALL (via api.js)
   const { ok, data } = await API.createReservation({
-    user_id:         sessionStorage.getItem('user_id') || null,
+    user_id:         userId,
     car_id:          carId,
     PickUp_Date:     pickupDate,
     Return_Date:     returnDate,
