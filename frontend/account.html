@@ -12,7 +12,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- ── HEADER ── -->
+
+  <!-- HEADER -->
   <header class="site-header">
     <a href="home.html"><img src="./logo.png" alt="RentalRide" class="logo"></a>
     <div class="user-controls">
@@ -24,7 +25,6 @@
     </div>
   </header>
 
-  <!-- ── MY RESERVATIONS ── -->
   <main class="account-main">
     <div class="account-heading">
       <h1>My Reservations</h1>
@@ -34,11 +34,11 @@
     <!-- UPCOMING -->
     <section class="res-section">
       <h2 class="res-section-title">Upcoming</h2>
-      <div class="res-table" id="upcomingTable">
+      <div class="res-table">
         <div class="res-table-head">
           <span class="res-col res-col--car">Car</span>
           <span class="res-col res-col--dates">Rental Dates</span>
-          <span class="res-col res-col--location">Location:</span>
+          <span class="res-col res-col--location">Location</span>
           <span class="res-col res-col--cost">Total Cost</span>
           <span class="res-col res-col--actions"></span>
         </div>
@@ -50,23 +50,52 @@
 
     <!-- RENTAL HISTORY -->
     <section class="res-section">
-      <h2 class="res-section-title">Rental History</h2>
-      <div class="res-table" id="historyTable">
-        <div class="res-table-head">
+      <div class="history-section-header">
+        <h2 class="res-section-title" style="margin-bottom:0;">Rental History</h2>
+        <div class="history-filters">
+          <span class="history-filter-label">Show:</span>
+          <button class="hf-pill hf-pill--active" data-filter="all">All</button>
+          <button class="hf-pill" data-filter="completed">Completed</button>
+          <button class="hf-pill" data-filter="cancelled">Cancelled</button>
+        </div>
+      </div>
+
+      <!-- Summary strip -->
+      <div class="history-summary" id="historySummary" hidden>
+        <div class="hs-card">
+          <span class="hs-label">Total Rentals</span>
+          <span class="hs-value" id="hsTotalRentals">0</span>
+        </div>
+        <div class="hs-card">
+          <span class="hs-label">Total Spent</span>
+          <span class="hs-value" id="hsTotalSpent">$0</span>
+        </div>
+        <div class="hs-card">
+          <span class="hs-label">Completed</span>
+          <span class="hs-value" id="hsCompleted">0</span>
+        </div>
+        <div class="hs-card">
+          <span class="hs-label">Cancelled</span>
+          <span class="hs-value" id="hsCancelled">0</span>
+        </div>
+      </div>
+
+      <div class="res-table history-scroll-wrap">
+        <div class="res-table-head history-head">
           <span class="res-col res-col--car">Car</span>
           <span class="res-col res-col--dates">Rental Dates</span>
-          <span class="res-col res-col--location">Location:</span>
+          <span class="res-col res-col--location">Location</span>
           <span class="res-col res-col--cost">Total Cost</span>
-          <span class="res-col res-col--actions"></span>
+          <span class="res-col res-col--status">Status</span>
         </div>
-        <div class="res-list" id="historyList">
-          <div class="res-loading"><div class="spinner"></div><p>Loading reservations…</p></div>
+        <div class="res-list history-list" id="historyList">
+          <div class="res-loading"><div class="spinner"></div><p>Loading history…</p></div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- CANCEL RESERVATION CONFIRMATION MODAL -->
+  <!-- CANCEL MODAL -->
   <div class="modal-overlay notice-overlay" id="cancelModalOverlay" hidden>
     <div class="notice-card">
       <button type="button" class="modal-close modal-close--dark" id="cancelModalCloseBtn" aria-label="Close">✕</button>
