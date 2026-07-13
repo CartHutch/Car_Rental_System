@@ -72,7 +72,7 @@ def register():
         }), 201
 
     except Exception as e:
-        traceback.print_exc()  # This prints the full error details to your terminal
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
@@ -131,8 +131,8 @@ def get_cars():
         car_type = request.args.get("type")
         seats = request.args.get("seats")
         location = request.args.get("location")
-        start_date = request.args.get("start_date")  # requested pick-up date
-        end_date = request.args.get("end_date")  # requested return date
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
 
         query = supabase.table("cars").select("*")
         if model:
@@ -145,13 +145,8 @@ def get_cars():
             query = query.ilike("location", f"%{location}%")
 
         cars = query.execute().data or []
-        # Normalize to strings so this always matches how reservations.car_id
-        # is looked up/stored elsewhere (see create_reservation / get_user_reservations).
         car_ids = [str(c["id"]) for c in cars]
 
-        # Pull existing reservations for these cars so we can (a) filter out
-        # cars that collide with the requested date range, and (b) attach
-        # each car's booked ranges to the response for the UI to show.
         reservations_by_car = {}
         if car_ids:
             res_rows = (
@@ -169,7 +164,6 @@ def get_cars():
                 })
 
         def ranges_overlap(a_start, a_end, b_start, b_end):
-            # Two [start, end) date ranges collide if they intersect at all.
             return a_start < b_end and b_start < a_end
 
         result_cars = []
@@ -212,17 +206,12 @@ def create_reservation():
             if not data.get(field):
                 return jsonify({"error": f"'{field}' is required."}), 400
 
-        # Normalize car_id to a string so it always matches how we look it
-        # up elsewhere (cars_by_id in get_user_reservations, reservations_by_car
-        # in get_cars, etc). This is what prevents "car_id type drift" bugs.
         car_id = str(data["car_id"]).strip()
 
-        # Basic date valid check
         if data["Return_Date"] <= data["PickUp_Date"]:
             return jsonify({"error": "Return date must be after pick-up date."}), 400
 
-        # Prevent double-booking: reject if this car already has a
-        # reservation that overlaps the requested date range.
+        # Prevent double-booking
         existing = (
             supabase.table("reservations")
             .select("PickUp_Date, Return_Date")
@@ -250,9 +239,6 @@ def create_reservation():
 
         reservation = result.data[0]
 
-        # Sends booking confirmation email right after a successful booking
-        # Any failure here should never block the reservation itself from
-        # succeeding, so it's wrapped in its own try/except.
         try:
             _send_booking_confirmation(reservation)
         except Exception:
@@ -265,39 +251,56 @@ def create_reservation():
         return jsonify({"error": "An unexpected error occurred."}), 500
 
 
-@app.route("/api/reservations/<reservation_id>", methods=["DELETE"])
-def cancel_reservation(reservation_id):
+# ===== FIX: Combined route for GET (user reservations) and DELETE (cancel) =====
+# Previously these were two separate routes with the same URL pattern which
+# caused Flask to ignore the DELETE method entirely — the cancel button appeared
+# to work on the frontend but nothing was deleted from the database.
+@app.route("/api/reservations/<record_id>", methods=["GET", "DELETE"])
+def reservation_by_id(record_id):
+    if request.method == "DELETE":
+        return _cancel_reservation(record_id)
+    return _get_user_reservations(record_id)
+
+
+def _cancel_reservation(reservation_id):
+    """
+    Deletes a reservation from the database by its ID.
+    Optionally scoped to a user_id so customers can only cancel their own bookings.
+    """
     try:
         user_id = request.args.get("user_id")
 
-        query = supabase.table("reservations").select("id, user_id").eq("id", reservation_id)
-        existing = query.execute().data or []
+        # Check the reservation actually exists
+        existing = (
+            supabase.table("reservations")
+            .select("id, user_id")
+            .eq("id", reservation_id)
+            .execute()
+            .data or []
+        )
+
         if not existing:
             return jsonify({"error": "Reservation not found."}), 404
 
+        # Make sure the user owns this reservation
         if user_id and str(existing[0].get("user_id")) != str(user_id):
             return jsonify({"error": "You are not authorized to cancel this reservation."}), 403
-        
-        # Perform the deletion
-        result = supabase.table("reservations").delete().eq("id", reservation_id).execute()
 
-        # Check if an error occurred during the Supabase operation
-        if hasattr(result, 'error') and result.error:
-            print("Database error:", result.error)
-            return jsonify({"error": "Failed to cancel reservation due to a database error."}), 500
+        # Delete it from Supabase
+        supabase.table("reservations").delete().eq("id", reservation_id).execute()
 
-        # If there is no error, the deletion is successful
+        print(f"Reservation {reservation_id} deleted successfully.")
         return jsonify({"message": "Reservation cancelled."}), 200
 
     except Exception as e:
         print("Cancel reservation error:", e)
+        traceback.print_exc()
         return jsonify({"error": "An unexpected error occurred."}), 500
 
 
-@app.route("/api/reservations/<user_id>", methods=["GET"])
-def get_user_reservations(user_id):
+def _get_user_reservations(user_id):
     """
-    Returns { "upcoming": [...], "history": [...] } for the given user.
+    Returns { 'upcoming': [...], 'history': [...] } for the given user.
     Each reservation is joined with its car's model/image/price so the
     My Reservations page can render everything in one request.
     """
@@ -311,11 +314,8 @@ def get_user_reservations(user_id):
             or []
         )
 
-        # Fetch all cars and index by str(id) rather than filtering with
-        # .in_("id", car_ids) — if car_id is stored as text on the
-        # reservations table but "id" is an integer on cars (or vice versa),
-        # Postgrest's in_() can silently return zero matches. Comparing as
-        # strings sidesteps that mismatch entirely.
+        # Fetch all cars and index by str(id) to avoid type mismatch bugs
+        # where car_id is stored as text but id is an integer (or vice versa).
         car_rows = supabase.table("cars").select("*").execute().data or []
         cars_by_id = {str(c["id"]): c for c in car_rows}
 
@@ -323,13 +323,13 @@ def get_user_reservations(user_id):
 
         upcoming, history = [], []
         for r in res_rows:
-            # Cast the reservation's car_id to str too, so it actually
-            # matches the string keys in cars_by_id above.
             car = cars_by_id.get(str(r.get("car_id")), {})
             pickup, ret = r.get("PickUp_Date"), r.get("Return_Date")
             price = float(car.get("price") or 0)
             days = _compute_days(pickup, ret)
             total_cost = round(price * days, 2)
+
+            status = r.get("status") or "confirmed"
 
             entry = {
                 "reservation_id": r.get("id"),
@@ -343,9 +343,10 @@ def get_user_reservations(user_id):
                 "Pickup_Location": r.get("Pickup_Location"),
                 "Return_Location": r.get("Return_Location"),
                 "total_cost": total_cost,
+                "status": status,
             }
 
-            if ret and ret < today_str:
+            if status == "cancelled" or (ret and ret < today_str):
                 history.append(entry)
             else:
                 upcoming.append(entry)
@@ -365,8 +366,6 @@ def _build_booking_payload(reservation):
     """
     Builds the dict that email_sender.send_confirmation_email expects,
     using ONLY real data joined from reservations + cars + users.
-    reservation must at least have: id, user_id, car_id, PickUp_Date,
-    Return_Date, Pickup_Location.
     """
     car = supabase.table("cars").select("*").eq("id", reservation["car_id"]).single().execute().data or {}
     user = supabase.table("users").select("*").eq("id", reservation["user_id"]).single().execute().data or {}
@@ -389,6 +388,7 @@ def _build_booking_payload(reservation):
         "total_price": total_price,
         "status": "Confirmed",
     }
+
 
 def _send_booking_confirmation(reservation):
     booking = _build_booking_payload(reservation)
