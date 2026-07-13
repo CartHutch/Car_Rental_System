@@ -33,6 +33,41 @@ body {
 }
 
 
+/* GUEST WARNING BANNER */
+
+.guest-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #fff3cd;
+  color: #7a5c00;
+  border-bottom: 1px solid #f2df9d;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.guest-banner[hidden] {
+  display: none;
+}
+
+.guest-banner svg {
+  flex-shrink: 0;
+  color: #b38600;
+}
+
+.guest-banner-link {
+  color: #7a5c00;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.guest-banner-link:hover {
+  color: #4d3900;
+}
+
 /* HEADER USER CONTROLS */
 
 .user-controls {
@@ -602,6 +637,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.notice-icon--warn {
+  background: #fdecea;
+  color: #c0392b;
 }
 
 .notice-title {

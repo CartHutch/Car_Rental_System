@@ -1,12 +1,18 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from supabase import create_client
-from email_sender import send_confirmation_email
 from dotenv import load_dotenv
 from datetime import datetime, date
 import hashlib
 import os
 import traceback
+
+# smtplib is Python's built in email sending library
+import smtplib
+
+# These two help us build the email with both HTML and plain text
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 load_dotenv()
 
@@ -36,6 +42,22 @@ def register():
         # Strip password too, so a stray leading/trailing space (e.g. from
         # autofill) can't create a hash mismatch between signup and login.
         password = data["password"].strip()
+
+        # Enforce minimum age 16 (Canada learner's permit / driving age)
+        # server-side too, since the client-side date picker restriction
+        # can be bypassed by calling this endpoint directly.
+        dob_str = (data.get("dob") or "").strip()
+        if not dob_str:
+            return jsonify({"error": "Date of birth is required."}), 400
+        try:
+            dob = datetime.strptime(dob_str, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "Invalid date of birth."}), 400
+
+        today = date.today()
+        cutoff = today.replace(year=today.year - 16)
+        if dob > cutoff:
+            return jsonify({"error": "You must be at least 16 years old to sign up."}), 400
 
         # Check if email already exists
         existing = supabase.table("users").select("id").eq("email", email).execute()
@@ -206,6 +228,24 @@ def create_reservation():
             if not data.get(field):
                 return jsonify({"error": f"'{field}' is required."}), 400
 
+<<<<<<< HEAD
+=======
+        # A reservation must belong to a real, logged-in user. The frontend
+        # gates the Reserve flow behind login, but that's only a UX nicety —
+        # anyone can call this endpoint directly, so it has to be enforced
+        # here too.
+        user_id = data.get("user_id")
+        if not user_id:
+            return jsonify({"error": "You must be logged in to make a reservation."}), 401
+
+        user_check = supabase.table("users").select("id").eq("id", user_id).execute().data or []
+        if not user_check:
+            return jsonify({"error": "You must be logged in to make a reservation."}), 401
+
+        # Normalize car_id to a string so it always matches how we look it
+        # up elsewhere (cars_by_id in get_user_reservations, reservations_by_car
+        # in get_cars, etc). This is what prevents "car_id type drift" bugs.
+>>>>>>> 1d0b6560ddf2630ec96d160d3b35af16cb519633
         car_id = str(data["car_id"]).strip()
 
         if data["Return_Date"] <= data["PickUp_Date"]:
@@ -389,6 +429,140 @@ def _build_booking_payload(reservation):
         "status": "Confirmed",
     }
 
+<<<<<<< HEAD
+=======
+def send_confirmation_email(booking):
+    """
+    Sends the booking confirmation email. Takes a booking dict built by
+    _build_booking_payload() and emails the customer via Gmail SMTP.
+    (Formerly lived in email_sender.py — merged directly into app.py.)
+    """
+
+    # Read Gmail credentials from .env
+    sender = os.getenv("GMAIL_ADDRESS")
+    password = os.getenv("GMAIL_APP_PASSWORD")
+
+    recipient = booking["customer_email"]
+
+    # Create the email object
+    # 'alternative' means it can hold both plain text and HTML versions
+    msg = MIMEMultipart("alternative")
+
+    # Set the subject line, who it's from, and who it's going to
+    msg["Subject"] = f"Booking Confirmation - {booking['vehicle_name']}"
+    msg["From"] = sender
+    msg["To"] = recipient
+
+    status = booking.get("status", "Confirmed")
+
+    # This is the actual email body written in HTML, styled to match
+    # RentalRide's branding (dark navy header, clean details table,
+    # green status badge, light footer).
+    html = f"""
+    <html>
+    <body style="margin:0; padding:0; background-color:#f2f4f8; font-family: 'Segoe UI', Arial, sans-serif;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f2f4f8; padding:32px 0;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.06);">
+
+                        <!-- Header -->
+                        <tr>
+                            <td style="background-color:#0b1f4b; padding:28px 32px;">
+                                <div style="color:#ffffff; font-size:22px; font-weight:700;">RentalRide</div>
+                                <div style="color:#a9b6d6; font-size:13px; margin-top:4px;">Car Rental Management System</div>
+                            </td>
+                        </tr>
+
+                        <!-- Body -->
+                        <tr>
+                            <td style="padding:32px;">
+                                <h2 style="margin:0 0 16px; color:#0b1f4b; font-size:20px;">Booking Confirmed!</h2>
+
+                                <p style="margin:0 0 12px; color:#222; font-size:14px; line-height:1.6;">
+                                    Hi <strong>{booking['customer_name']}</strong>,
+                                </p>
+                                <p style="margin:0 0 20px; color:#222; font-size:14px; line-height:1.6;">
+                                    Your booking has been confirmed. Here is a summary of your reservation details below.
+                                </p>
+
+                                <!-- Booking Details table -->
+                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ee; border-radius:8px; overflow:hidden;">
+                                    <tr>
+                                        <td colspan="2" style="background-color:#0b1f4b; color:#ffffff; font-size:13px; font-weight:700; padding:10px 16px;">
+                                            Booking Details
+                                        </td>
+                                    </tr>
+                                    <tr style="background-color:#f6f8fc;">
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b; width:40%;">Vehicle</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">{booking['vehicle_name']}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">Pickup Location</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">{booking['pickup_location']}</td>
+                                    </tr>
+                                    <tr style="background-color:#f6f8fc;">
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">Start Date</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">{booking['start_date']}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">End Date</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">{booking['end_date']}</td>
+                                    </tr>
+                                    <tr style="background-color:#f6f8fc;">
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">Total Price</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">${booking['total_price']}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">Status</td>
+                                        <td style="padding:12px 16px;">
+                                            <span style="background-color:#e5f7ec; color:#1e8449; font-size:12px; font-weight:700; padding:4px 12px; border-radius:12px; display:inline-block;">
+                                                {status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </table>
+
+                                <p style="margin:24px 0 0; color:#444; font-size:13px; line-height:1.6;">
+                                    If you have any questions about your booking, please don't hesitate to reach out to us.
+                                </p>
+                                <p style="margin:12px 0 0; color:#444; font-size:13px; line-height:1.6;">
+                                    Thank you for choosing <strong>RentalRide</strong>!
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- Footer -->
+                        <tr>
+                            <td style="background-color:#f6f8fc; padding:18px 32px; text-align:center; border-top:1px solid #e4e7ee;">
+                                <p style="margin:0; color:#9099ab; font-size:11px;">
+                                    This is an automated confirmation email. Please do not reply directly to this message.
+                                </p>
+                                <p style="margin:4px 0 0; color:#9099ab; font-size:11px;">
+                                    &copy; 2026 RentalRide — Car Rental Management System
+                                </p>
+                            </td>
+                        </tr>
+
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+
+    # Attach the HTML to the email
+    msg.attach(MIMEText(html, "html"))
+
+    # Connect to Gmail's server and send the email
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        # Log into Gmail using your credentials from .env
+        server.login(sender, password)
+        # Actually send the email
+        server.sendmail(sender, recipient, msg.as_string())
+
+>>>>>>> 1d0b6560ddf2630ec96d160d3b35af16cb519633
 
 def _send_booking_confirmation(reservation):
     booking = _build_booking_payload(reservation)

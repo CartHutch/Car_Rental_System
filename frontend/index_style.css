@@ -250,6 +250,14 @@ p {
 .field-msg.ok    { color: #27ae60; }
 .field-msg.error { color: #e74c3c; }
 
+.tiny-note {
+  font-size: 11px;
+  color: #888;
+  margin-top: 4px;
+  display: block;
+  line-height: 1.4;
+}
+
 /* Password strength */
 
 .strength-wrap {
