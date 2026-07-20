@@ -263,7 +263,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loginResult.ok) {
           sessionStorage.setItem('user_id', loginResult.data.user_id);
           sessionStorage.setItem('first_name', loginResult.data.first_name || firstName);
-          window.location.href = `${BASE_URL}/home`;
+          sessionStorage.setItem('role', loginResult.data.role || 'customer');
+          window.location.href = (loginResult.data.role === 'admin')
+            ? `${BASE_URL}/admin`
+            : `${BASE_URL}/home`;
           return;
         } else {
           setFormMsg('signup-msg', 'Account created! Please log in.', 'success');
@@ -301,7 +304,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setFormMsg('login-msg', '✓ Login successful! Redirecting…', 'success');
         sessionStorage.setItem('user_id', data.user_id);
         if (data.first_name) sessionStorage.setItem('first_name', data.first_name);
-        window.location.href = `${BASE_URL}/home`;
+        sessionStorage.setItem('role', data.role || 'customer');
+        window.location.href = (data.role === 'admin')
+          ? `${BASE_URL}/admin`
+          : `${BASE_URL}/home`;
       } else {
         setFormMsg('login-msg', data.error || 'Invalid email or password.', 'error');
       }
