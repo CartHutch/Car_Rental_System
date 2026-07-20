@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from supabase import create_client
 from dotenv import load_dotenv
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import hashlib
 import os
 import traceback
@@ -99,7 +99,7 @@ def login():
 
         result = (
             supabase.table("users")
-            .select("id, first_name, last_name, email")
+            .select("id, first_name, last_name, email, role")
             .eq("email", email)
             .eq("password", password_hash)
             .execute()
@@ -114,6 +114,7 @@ def login():
             "user_id": user["id"],
             "first_name": user["first_name"],
             "last_name": user["last_name"],
+            "role": (user.get("role") or "customer").strip().lower(),
         }), 200
 
     except Exception as e:
@@ -524,10 +525,230 @@ def confirm_booking():
         return jsonify({"error": str(e)}), 500
 
 
+def _is_admin(requester_id):
+    if not requester_id:
+        return False
+    row = (
+        supabase.table("users")
+        .select("role")
+        .eq("id", requester_id)
+        .execute()
+        .data or []
+    )
+    return bool(row) and (row[0].get("role") == "admin")
+
+
+@app.route("/api/admin/users", methods=["GET"])
+def admin_list_users():
+    try:
+        requester_id = request.args.get("requester_id")
+        if not _is_admin(requester_id):
+            return jsonify({"error": "Not authorized."}), 403
+
+        rows = (
+            supabase.table("users")
+            .select("id, first_name, last_name, email, role")
+            .order("first_name")
+            .execute()
+            .data or []
+        )
+
+        customers = [r for r in rows if (r.get("role") or "").lower() != "admin"]
+        return jsonify(customers), 200
+
+    except Exception as e:
+        print("Admin list users error:", e)
+        return jsonify({"error": "Failed to fetch users."}), 500
+
+
+@app.route("/api/admin/cars", methods=["GET"])
+def admin_list_cars():
+    """Full car list for the admin dashboard's car search/select filter."""
+    try:
+        requester_id = request.args.get("requester_id")
+        if not _is_admin(requester_id):
+            return jsonify({"error": "Not authorized."}), 403
+
+        rows = (
+            supabase.table("cars")
+            .select("id, model, type, location, price")
+            .order("model")
+            .execute()
+            .data or []
+        )
+        return jsonify(rows), 200
+
+    except Exception as e:
+        print("Admin list cars error:", e)
+        return jsonify({"error": "Failed to fetch cars."}), 500
+
+
+@app.route("/api/admin/rental-stats", methods=["GET"])
+def admin_rental_stats():
+    try:
+        requester_id = request.args.get("requester_id")
+        if not _is_admin(requester_id):
+            return jsonify({"error": "Not authorized."}), 403
+
+        user_ids_param = request.args.get("user_ids", "").strip()
+        selected_ids = [u.strip() for u in user_ids_param.split(",") if u.strip()]
+        car_ids_param = request.args.get("car_ids", "").strip()
+        selected_car_ids = [c.strip() for c in car_ids_param.split(",") if c.strip()]
+        start_date = request.args.get("start_date") or None
+        end_date = request.args.get("end_date") or None
+
+        query = supabase.table("reservations").select(
+            "id, user_id, car_id, PickUp_Date, Return_Date, status"
+        )
+        if selected_ids:
+            query = query.in_("user_id", selected_ids)
+        if selected_car_ids:
+            query = query.in_("car_id", selected_car_ids)
+
+        reservations = query.execute().data or []
+
+        car_rows = supabase.table("cars").select("id, price, model, type").execute().data or []
+        price_by_car = {str(c["id"]): float(c.get("price") or 0) for c in car_rows}
+        model_by_car = {str(c["id"]): c.get("model") or f"Car {c['id']}" for c in car_rows}
+        type_by_car = {str(c["id"]): c.get("type") or "Other" for c in car_rows}
+
+
+        user_rows = supabase.table("users").select("id, first_name, last_name, email, role").execute().data or []
+        name_by_user = {
+            str(u["id"]): (f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip() or u.get("email") or f"User {u['id']}")
+            for u in user_rows
+        }
+
+        def ranges_overlap(a_start, a_end, b_start, b_end):
+            return a_start <= b_end and b_start <= a_end
+
+
+        scoped = []
+        for r in reservations:
+            if (r.get("status") or "").lower() == "cancelled":
+                continue
+            pickup, ret = r.get("PickUp_Date"), r.get("Return_Date")
+            if not pickup or not ret:
+                continue
+            if start_date and end_date and not ranges_overlap(pickup, ret, start_date, end_date):
+                continue
+
+            days = _compute_days(pickup, ret)
+            price = price_by_car.get(str(r.get("car_id")), 0)
+            scoped.append({
+                **r,
+                "_days": days,
+                "_total_cost": round(price * days, 2),
+            })
+
+
+        if start_date and end_date:
+            span_start, span_end = start_date, end_date
+        elif scoped:
+            span_start = min(r["PickUp_Date"] for r in scoped)
+            span_end = max(r["Return_Date"] for r in scoped)
+        else:
+            span_start = span_end = None
+
+        series = []
+        if span_start and span_end:
+            cur = datetime.strptime(span_start, "%Y-%m-%d").date()
+            last = datetime.strptime(span_end, "%Y-%m-%d").date()
+            while cur <= last:
+                key = cur.isoformat()
+                active = [r for r in scoped if r["PickUp_Date"] <= key <= r["Return_Date"]]
+
+                active_car_ids_today = {str(r.get("car_id")) for r in active}
+                active_cars = sorted({model_by_car.get(cid, f"Car {cid}") for cid in active_car_ids_today})
+                active_customers = sorted({name_by_user.get(str(r.get("user_id")), f"User {r.get('user_id')}") for r in active})
+                series.append({
+                    "date": key,
+                    "total_cost": round(sum(r["_total_cost"] for r in active), 2),
+                    "cars": active_cars[:8],
+                    "cars_more": max(0, len(active_cars) - 8),
+                    "customers": active_customers[:8],
+                    "customers_more": max(0, len(active_customers) - 8),
+                })
+                cur += timedelta(days=1)
+
+        involved_user_ids = {r.get("user_id") for r in scoped}
+
+        unique_customer_count = len(set(selected_ids)) if selected_ids else len(involved_user_ids)
+ 
+        involved_car_ids = {r.get("car_id") for r in scoped}
+        unique_car_count = len(set(selected_car_ids)) if selected_car_ids else len(involved_car_ids)
+
+        total_rentals = len(scoped)
+        avg_duration = round(sum(r["_days"] for r in scoped) / total_rentals, 1) if total_rentals else 0
+        avg_revenue_per_rental = round(sum(r["_total_cost"] for r in scoped) / total_rentals, 2) if total_rentals else 0
+
+
+        revenue_by_car = {}
+        for r in scoped:
+            cid = str(r.get("car_id"))
+            revenue_by_car[cid] = revenue_by_car.get(cid, 0) + r["_total_cost"]
+        top_car_id, top_car_revenue = (
+            max(revenue_by_car.items(), key=lambda kv: kv[1]) if revenue_by_car else (None, 0)
+        )
+        top_car_label = model_by_car.get(top_car_id) if top_car_id else None
+
+        car_breakdown_sorted = sorted(revenue_by_car.items(), key=lambda kv: kv[1], reverse=True)
+        top_n, rest = car_breakdown_sorted[:6], car_breakdown_sorted[6:]
+        revenue_by_car_chart = [
+            {"label": model_by_car.get(cid, f"Car {cid}"), "value": round(val, 2)}
+            for cid, val in top_n
+        ]
+        if rest:
+            revenue_by_car_chart.append({"label": "Other cars", "value": round(sum(v for _, v in rest), 2)})
+
+        revenue_by_type = {}
+        for cid, val in revenue_by_car.items():
+            t = type_by_car.get(cid, "Other")
+            revenue_by_type[t] = revenue_by_type.get(t, 0) + val
+        revenue_by_type_chart = [
+            {"label": t, "value": round(v, 2)}
+            for t, v in sorted(revenue_by_type.items(), key=lambda kv: kv[1], reverse=True)
+        ]
+
+        total_customers_db = len([u for u in user_rows if (u.get("role") or "").lower() != "admin"])
+        total_cars_db = len(car_rows)
+
+        totals = {
+            "total_rentals": total_rentals,
+            "total_revenue": round(sum(r["_total_cost"] for r in scoped), 2),
+            "unique_users": unique_customer_count,
+            "unique_cars": unique_car_count,
+            "total_customers_db": total_customers_db,
+            "total_cars_db": total_cars_db,
+            "avg_duration_days": avg_duration,
+            "avg_revenue_per_rental": avg_revenue_per_rental,
+            "top_car": top_car_label,
+            "top_car_revenue": round(top_car_revenue, 2),
+        }
+
+        return jsonify({
+            "series": series,
+            "totals": totals,
+            "revenue_by_car": revenue_by_car_chart,
+            "revenue_by_type": revenue_by_type_chart,
+        }), 200
+
+    except Exception as e:
+        print("Admin rental stats error:", e)
+        traceback.print_exc()
+        return jsonify({"error": "Failed to fetch rental stats."}), 500
+
+
 @app.route("/home")
 @app.route("/home.html")
 def home():
     return send_from_directory(FRONTEND_DIR, "home.html")
+
+
+@app.route("/admin")
+@app.route("/admin.html")
+def admin():
+    return send_from_directory(FRONTEND_DIR, "admin.html")
 
 
 @app.route("/")
