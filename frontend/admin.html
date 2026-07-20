@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="admin_style.css">
+  <link rel="icon" href="./favicon.ico" type="image/x-icon">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="restricted-screen" id="restrictedScreen">
+    <svg class="restricted-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+    </svg>
+    <p class="restricted-text">Restricted to only administrators</p>
+  </div>
+
+  <div id="adminApp" hidden>
+    <header class="site-header">
+      <a href="admin.html"><img src="./logo.png" alt="RentalRide" class="logo"></a>
+      <div class="user-controls">
+        <span class="admin-badge">Admin</span>
+        <button class="btn-logout" id="logoutBtn">Logout</button>
+      </div>
+    </header>
+
+    <main class="admin-main">
+      <div class="admin-heading">
+        <h1>Rental Analytics</h1>
+      </div>
+
+      <!-- Filters -->
+      <div class="analytics-filters">
+        <div class="filter-block filter-block--users">
+          <span class="filter-label">Customers</span>
+          <div class="user-combobox" id="userCombobox">
+            <div class="user-chips" id="userChips">
+              <span class="user-chip user-chip--all user-chip--all-active" id="allUsersChip">All Customers</span>
+            </div>
+            <input class="user-search-input" id="userSearchInput" type="text" placeholder="Search customers by name…" autocomplete="off">
+            <ul class="user-dropdown" id="userDropdown" hidden></ul>
+          </div>
+        </div>
+
+        <div class="filter-block filter-block--cars">
+          <span class="filter-label">Cars</span>
+          <div class="user-combobox" id="carCombobox">
+            <div class="user-chips" id="carChips">
+              <span class="user-chip user-chip--all user-chip--all-active" id="allCarsChip">All Cars</span>
+            </div>
+            <input class="user-search-input" id="carSearchInput" type="text" placeholder="Search cars by model…" autocomplete="off">
+            <ul class="user-dropdown" id="carDropdown" hidden></ul>
+          </div>
+        </div>
+
+        <div class="filter-block filter-block--range">
+          <span class="filter-label">Duration</span>
+          <div class="range-pills">
+            <button type="button" class="range-pill range-pill--active" data-range="all">All Time</button>
+            <button type="button" class="range-pill" data-range="custom">Custom Range</button>
+          </div>
+          <div class="range-dates" id="rangeDates" hidden>
+            <input class="range-date-input" type="date" id="statsStartDate">
+            <span class="range-dates-sep">to</span>
+            <input class="range-date-input" type="date" id="statsEndDate">
+          </div>
+        </div>
+
+      </div>
+
+      <p class="stats-scope" id="statsScope">Showing: All Customers · All Cars · All Time</p>
+
+      <!-- Summary cards -->
+      <div class="stats-summary">
+        <div class="stat-card">
+          <div class="stat-label-row">
+            <span class="stat-label">Total Rentals</span>
+            <button type="button" class="info-icon" data-info="totalRentals" aria-label="What does this show?">i</button>
+          </div>
+          <span class="stat-value" id="statTotalRentals">0</span>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label-row">
+            <span class="stat-label">Total Revenue</span>
+            <button type="button" class="info-icon" data-info="totalRevenue" aria-label="What does this show?">i</button>
+          </div>
+          <span class="stat-value" id="statTotalRevenue">$0</span>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label-row">
+            <span class="stat-label">Customers Included</span>
+            <button type="button" class="info-icon" data-info="customersIncluded" aria-label="What does this show?">i</button>
+          </div>
+          <span class="stat-value" id="statUniqueUsers">0 <span class="stat-value-suffix">/ 0 total</span></span>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label-row">
+            <span class="stat-label">Cars Included</span>
+            <button type="button" class="info-icon" data-info="carsIncluded" aria-label="What does this show?">i</button>
+          </div>
+          <span class="stat-value" id="statUniqueCars">0 <span class="stat-value-suffix">/ 0 in fleet</span></span>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label-row">
+            <span class="stat-label">Avg. Rental Duration</span>
+            <button type="button" class="info-icon" data-info="avgDuration" aria-label="What does this show?">i</button>
+          </div>
+          <span class="stat-value" id="statAvgDuration">0 days</span>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label-row">
+            <span class="stat-label">Avg. Revenue / Rental</span>
+            <button type="button" class="info-icon" data-info="avgRevenue" aria-label="What does this show?">i</button>
+          </div>
+          <span class="stat-value" id="statAvgRevenue">$0</span>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label-row">
+            <span class="stat-label">Top Earning Car</span>
+            <button type="button" class="info-icon" data-info="topCar" aria-label="What does this show?">i</button>
+          </div>
+          <span class="stat-value stat-value--small" id="statTopCar">—</span>
+        </div>
+      </div>
+
+      <!-- Shared explanation popover for the info icons above -->
+      <div class="info-popover" id="infoPopover" hidden>
+        <p id="infoPopoverText"></p>
+      </div>
+
+      <!-- Chart -->
+      <div class="chart-card">
+        <div class="live-indicator" id="liveIndicator">
+          <span class="live-dot"></span> Live
+          <div class="live-tooltip">This chart refreshes automatically every few seconds with the latest reservation data.</div>
+        </div>
+        <div class="chart-card-title-row">
+          <p class="chart-card-title">Daily Rental Revenue</p>
+          <button type="button" class="info-icon" data-info="dailyRevenue" aria-label="What does this show?">i</button>
+        </div>
+        <div class="chart-canvas-wrap">
+          <div class="chart-loading" id="chartLoading">
+            <div class="spinner"></div>
+            <p>Loading rental data…</p>
+          </div>
+          <div class="chart-empty" id="chartEmpty" hidden>
+            <p>No reservations found for this selection.</p>
+          </div>
+          <canvas id="rentalChart" hidden></canvas>
+        </div>
+      </div>
+
+      <!-- Breakdown charts -->
+      <div class="chart-row">
+        <div class="chart-card chart-card--half">
+          <div class="chart-card-title-row">
+            <p class="chart-card-title">Revenue by Car</p>
+            <button type="button" class="info-icon" data-info="revenueByCar" aria-label="What does this show?">i</button>
+          </div>
+          <div class="chart-canvas-wrap">
+            <div class="chart-empty" id="carPieEmpty" hidden><p>No revenue yet for this selection.</p></div>
+            <canvas id="revenueByCarChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card chart-card--half">
+          <div class="chart-card-title-row">
+            <p class="chart-card-title">Revenue by Car Type</p>
+            <button type="button" class="info-icon" data-info="revenueByType" aria-label="What does this show?">i</button>
+          </div>
+          <div class="chart-canvas-wrap">
+            <div class="chart-empty" id="typePieEmpty" hidden><p>No revenue yet for this selection.</p></div>
+            <canvas id="revenueByTypeChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js"></script>
+  <script src="api.js"></script>
+  <script src="admin_script.js"></script>
+</body>
+</html>
