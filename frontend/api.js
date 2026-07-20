@@ -137,4 +137,46 @@ const API = {
       body: JSON.stringify(payload),
     });
   },
+
+  /* Admin */
+
+  /**
+   * GET /api/admin/users — full user list for the admin dashboard's
+   * user search/select filter. Requires the caller to already be an admin.
+   * @param {string|number} requesterId
+   * @returns {{ ok, status, data: {id, first_name, last_name, email}[] }}
+   */
+  getAdminUsers(requesterId) {
+    const qs = new URLSearchParams({ requester_id: requesterId }).toString();
+    return _request(`${BASE_URL}/api/admin/users?${qs}`);
+  },
+
+  /**
+   * GET /api/admin/cars — full car list for the admin dashboard's car
+   * search/select filter.
+   * @param {string|number} requesterId
+   * @returns {{ ok, status, data: {id, model, type, location, price}[] }}
+   */
+  getAdminCars(requesterId) {
+    const qs = new URLSearchParams({ requester_id: requesterId }).toString();
+    return _request(`${BASE_URL}/api/admin/cars?${qs}`);
+  },
+
+  /**
+   * GET /api/admin/rental-stats — daily total_cost series (with per-day
+   * active car/customer names for hover detail), optionally scoped to
+   * specific users, specific cars, and/or a date range. Also returns
+   * revenue breakdowns by car and by car type for pie charts, and totals
+   * that include both the filtered counts and the all-time DB counts.
+   * @param {{ requesterId, userIds?: (string|number)[], carIds?: (string|number)[], startDate?: string, endDate?: string }} opts
+   * @returns {{ ok, status, data: { series: object[], totals: object, revenue_by_car: {label,value}[], revenue_by_type: {label,value}[] } }}
+   */
+  getAdminRentalStats({ requesterId, userIds = [], carIds = [], startDate = '', endDate = '' } = {}) {
+    const params = new URLSearchParams({ requester_id: requesterId });
+    if (userIds.length) params.append('user_ids', userIds.join(','));
+    if (carIds.length) params.append('car_ids', carIds.join(','));
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    return _request(`${BASE_URL}/api/admin/rental-stats?${params.toString()}`);
+  },
 };
