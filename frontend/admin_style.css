@@ -106,6 +106,23 @@ button {
   padding: 40px 40px 80px;
 }
 
+.btn-manage-inventory {
+  display: inline-block;
+  background: #09193a;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  transition: background 0.2s ease;
+}
+
+.btn-manage-inventory:hover {
+  background: #132a5c;
+}
+
 .admin-heading {
   margin-bottom: 28px;
 }
