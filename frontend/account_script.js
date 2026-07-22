@@ -38,21 +38,22 @@ function formatCost(amount) {
 }
 
 function getStatus(res) {
-  if (res.status) return res.status.toLowerCase();
+  const status = (res.status || '').toLowerCase();
+  if (status === 'cancelled') return 'cancelled';
   const today = new Date().toISOString().split('T')[0];
-  return (res.Return_Date && res.Return_Date < today) ? 'completed' : 'confirmed';
+  if (res.Return_Date && res.Return_Date < today) return 'completed';
+  return status || 'confirmed';
 }
 
 function statusBadge(status) {
   const styles = {
     completed: 'background:#e5f7ec;color:#1e8449;',
-    cancelled:  'background:#fdecea;color:#c0392b;',
-    confirmed:  'background:#e8f0fe;color:#1a56db;',
+    cancelled: 'background:#fdecea;color:#c0392b;',
+    confirmed: 'background:#e8f0fe;color:#1a56db;',
   };
   const style = styles[status] || styles.confirmed;
   const label = status.charAt(0).toUpperCase() + status.slice(1);
-  return `<span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;
-    border-radius:12px;text-transform:uppercase;letter-spacing:0.04em;${style}">${escapeHtml(label)}</span>`;
+  return `<span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;text-transform:uppercase;letter-spacing:0.04em;${style}">${escapeHtml(label)}</span>`;
 }
 
 const CAR_PLACEHOLDER = `<div class="res-car-img-placeholder">
@@ -120,7 +121,7 @@ function buildUpcomingRow(res) {
   });
 
   row.querySelector('.btn-cancel-res').addEventListener('click', () => {
-    openCancelModal(res.reservation_id, res.model, row);
+    openCancelModal(res, row);
   });
 
   return row;
@@ -214,12 +215,12 @@ async function loadReservations() {
   if (!ok) {
     const msg = (data && data.error) || 'Could not load your reservations.';
     document.getElementById('upcomingList').innerHTML = emptyStateHTML(msg);
-    document.getElementById('historyList').innerHTML  = emptyStateHTML(msg);
+    document.getElementById('historyList').innerHTML = emptyStateHTML(msg);
     return;
   }
 
   const upcoming = data.upcoming || [];
-  const history  = data.history  || [];
+  const history = data.history || [];
 
   /* Upcoming */
   const upList = document.getElementById('upcomingList');
@@ -232,15 +233,18 @@ async function loadReservations() {
 
   /* History summary strip */
   if (history.length) {
-    const totalSpent = history.reduce((s, r) => s + (Number(r.total_cost) || 0), 0);
-    const completed  = history.filter(r => getStatus(r) === 'completed').length;
-    const cancelled  = history.filter(r => getStatus(r) === 'cancelled').length;
+    // Cancelled reservations shouldn't count toward money actually spent.
+    const totalSpent = history
+      .filter(r => getStatus(r) !== 'cancelled')
+      .reduce((s, r) => s + (Number(r.total_cost) || 0), 0);
+    const completed = history.filter(r => getStatus(r) === 'completed').length;
+    const cancelled = history.filter(r => getStatus(r) === 'cancelled').length;
 
     document.getElementById('hsTotalRentals').textContent = history.length;
-    document.getElementById('hsTotalSpent').textContent   = formatCost(totalSpent);
-    document.getElementById('hsCompleted').textContent    = completed;
-    document.getElementById('hsCancelled').textContent    = cancelled;
-    document.getElementById('historySummary').hidden      = false;
+    document.getElementById('hsTotalSpent').textContent = formatCost(totalSpent);
+    document.getElementById('hsCompleted').textContent = completed;
+    document.getElementById('hsCancelled').textContent = cancelled;
+    document.getElementById('historySummary').hidden = false;
   }
 
   /* History rows */
@@ -251,10 +255,10 @@ async function loadReservations() {
 /* ── Cancel Modal ── */
 let pendingCancel = null;
 
-function openCancelModal(reservationId, model, rowEl) {
-  pendingCancel = { reservationId, rowEl };
+function openCancelModal(res, rowEl) {
+  pendingCancel = { res, rowEl };
   document.getElementById('cancelModalMessage').textContent =
-    `Are you sure you want to cancel your reservation for ${model || 'this vehicle'}? This can't be undone.`;
+    `Are you sure you want to cancel your reservation for ${res.model || 'this vehicle'}? This can't be undone.`;
   const errorEl = document.getElementById('cancelModalError');
   errorEl.style.display = 'none';
   errorEl.textContent = '';
@@ -280,22 +284,23 @@ document.addEventListener('keydown', e => {
 document.getElementById('cancelModalConfirmBtn').addEventListener('click', async () => {
   if (!pendingCancel) return;
 
-  const { reservationId, rowEl } = pendingCancel;
+  const { res, rowEl } = pendingCancel;
+  const reservationId = res.reservation_id;
   const confirmBtn = document.getElementById('cancelModalConfirmBtn');
-  const errorEl   = document.getElementById('cancelModalError');
+  const errorEl = document.getElementById('cancelModalError');
 
-  confirmBtn.disabled    = true;
+  confirmBtn.disabled = true;
   confirmBtn.textContent = 'Cancelling…';
-  errorEl.style.display  = 'none';
+  errorEl.style.display = 'none';
 
   const userId = sessionStorage.getItem('user_id');
   const { ok, data } = await API.cancelReservation(reservationId, userId);
 
-  confirmBtn.disabled    = false;
+  confirmBtn.disabled = false;
   confirmBtn.textContent = 'Yes, Cancel It';
 
   if (!ok) {
-    errorEl.textContent   = (data && data.error) || 'Could not cancel. Please try again.';
+    errorEl.textContent = (data && data.error) || 'Could not cancel. Please try again.';
     errorEl.style.display = 'block';
     return;
   }
@@ -308,6 +313,13 @@ document.getElementById('cancelModalConfirmBtn').addEventListener('click', async
   }
 
   closeCancelModal();
+
+  try {
+    addNotification(`Cancellation for ${res.model || 'the car'} confirmed for ${formatDateRange(res.PickUp_Date, res.Return_Date)}.`);
+    addNotification(`Refund sent for ${formatCost(res.total_cost)} (${res.model || 'the car'}).`);
+  } catch (err) {
+    console.error('Could not save notification:', err);
+  }
 
   /* Reload so the cancelled booking moves to history immediately */
   await loadReservations();
