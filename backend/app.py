@@ -493,6 +493,101 @@ def _send_booking_confirmation(reservation):
     send_confirmation_email(booking)
 
 
+def send_cancellation_email(booking):
+    sender = os.getenv("GMAIL_ADDRESS")
+    password = os.getenv("GMAIL_APP_PASSWORD")
+    recipient = booking["customer_email"]
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"Reservation Cancelled - {booking['vehicle_name']}"
+    msg["From"] = sender
+    msg["To"] = recipient
+
+    html = f"""
+    <html>
+    <body style="margin:0; padding:0; background-color:#f2f4f8; font-family: 'Segoe UI', Arial, sans-serif;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f2f4f8; padding:32px 0;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.06);">
+                        <tr>
+                            <td style="background-color:#0b1f4b; padding:28px 32px;">
+                                <div style="color:#ffffff; font-size:22px; font-weight:700;">RentalRide</div>
+                                <div style="color:#a9b6d6; font-size:13px; margin-top:4px;">Car Rental Management System</div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:32px;">
+                                <h2 style="margin:0 0 16px; color:#0b1f4b; font-size:20px;">Reservation Cancelled</h2>
+                                <p style="margin:0 0 12px; color:#222; font-size:14px; line-height:1.6;">
+                                    Hi <strong>{booking['customer_name']}</strong>,
+                                </p>
+                                <p style="margin:0 0 20px; color:#222; font-size:14px; line-height:1.6;">
+                                    We're sorry, but the vehicle for your upcoming reservation has become unavailable
+                                    and your booking has been cancelled. No charges apply. Please accept our
+                                    apologies for the inconvenience — feel free to book another vehicle any time.
+                                </p>
+                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e7ee; border-radius:8px; overflow:hidden;">
+                                    <tr>
+                                        <td colspan="2" style="background-color:#0b1f4b; color:#ffffff; font-size:13px; font-weight:700; padding:10px 16px;">
+                                            Cancelled Reservation
+                                        </td>
+                                    </tr>
+                                    <tr style="background-color:#f6f8fc;">
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b; width:40%;">Vehicle</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">{booking['vehicle_name']}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">Pickup Location</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">{booking['pickup_location']}</td>
+                                    </tr>
+                                    <tr style="background-color:#f6f8fc;">
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">Start Date</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">{booking['start_date']}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">End Date</td>
+                                        <td style="padding:12px 16px; font-size:13px; color:#222;">{booking['end_date']}</td>
+                                    </tr>
+                                    <tr style="background-color:#f6f8fc;">
+                                        <td style="padding:12px 16px; font-size:13px; font-weight:700; color:#0b1f4b;">Status</td>
+                                        <td style="padding:12px 16px;">
+                                            <span style="background-color:#fbe7e4; color:#c0392b; font-size:12px; font-weight:700; padding:4px 12px; border-radius:12px; display:inline-block;">
+                                                Cancelled
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <p style="margin:24px 0 0; color:#444; font-size:13px; line-height:1.6;">
+                                    If you have any questions, please don't hesitate to reach out to us.
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background-color:#f6f8fc; padding:18px 32px; text-align:center; border-top:1px solid #e4e7ee;">
+                                <p style="margin:0; color:#9099ab; font-size:11px;">
+                                    This is an automated message. Please do not reply directly to this message.
+                                </p>
+                                <p style="margin:4px 0 0; color:#9099ab; font-size:11px;">
+                                    &copy; 2026 RentalRide — Car Rental Management System
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+
+    msg.attach(MIMEText(html, "html"))
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(sender, password)
+        server.sendmail(sender, recipient, msg.as_string())
+
+
 @app.route("/confirm-booking", methods=["POST"])
 def confirm_booking():
     try:
@@ -574,15 +669,28 @@ def admin_list_cars():
         if not _is_admin(requester_id):
             return jsonify({"error": "Not authorized."}), 403
 
+        today_str = date.today().isoformat()
+
+        # Sweep: a car marked for deferred deletion (its rental ended) gets
+        # actually removed once its delete_after date has passed.
+        overdue = (
+            supabase.table("cars")
+            .select("id")
+            .lt("delete_after", today_str)
+            .execute()
+            .data or []
+        )
+        for row in overdue:
+            supabase.table("cars").delete().eq("id", row["id"]).execute()
+
         rows = (
             supabase.table("cars")
-            .select("id, model, type, location, price, seats, image_url, status")
+            .select("id, model, type, location, price, seats, image_url, status, delete_after")
             .order("model")
             .execute()
             .data or []
         )
 
-        today_str = date.today().isoformat()
         active_res = (
             supabase.table("reservations")
             .select("car_id, status")
@@ -632,10 +740,61 @@ def admin_update_car_status(car_id):
 
 @app.route("/api/admin/cars/<car_id>", methods=["DELETE"])
 def admin_delete_car(car_id):
+    """Deleting a car is only ever instant when nothing is riding on it:
+      - If it's currently out on an active rental, the row is spared and
+        stamped with delete_after (its return date) instead — the next
+        /api/admin/cars call sweeps it away once that date has passed.
+      - If it has upcoming (not-yet-started) reservations, the caller must
+        pass confirm_cancel_future=true; those reservations get cancelled
+        and their customers emailed before the car is removed.
+    """
     try:
         requester_id = request.args.get("requester_id")
         if not _is_admin(requester_id):
             return jsonify({"error": "Not authorized."}), 403
+
+        confirm_cancel_future = request.args.get("confirm_cancel_future", "").strip().lower() == "true"
+        today_str = date.today().isoformat()
+
+        reservations = (
+            supabase.table("reservations")
+            .select("id, user_id, car_id, PickUp_Date, Return_Date, status")
+            .eq("car_id", car_id)
+            .execute()
+            .data or []
+        )
+        reservations = [r for r in reservations if (r.get("status") or "").lower() != "cancelled"]
+
+        active = [r for r in reservations if r["PickUp_Date"] <= today_str <= r["Return_Date"]]
+        future = [r for r in reservations if r["PickUp_Date"] > today_str]
+
+        if future and not confirm_cancel_future:
+            return jsonify({
+                "requires_confirmation": True,
+                "future_count": len(future),
+                "message": (
+                    f"This car has {len(future)} upcoming reservation"
+                    f"{'s' if len(future) != 1 else ''}. Deleting it will cancel "
+                    "them and email the affected customers."
+                ),
+            }), 409
+
+        for r in future:
+            supabase.table("reservations").update({"status": "cancelled"}).eq("id", r["id"]).execute()
+            try:
+                booking = _build_booking_payload(r)
+                if booking["customer_email"]:
+                    send_cancellation_email(booking)
+            except Exception:
+                traceback.print_exc()
+
+        if active:
+            delete_after = active[0]["Return_Date"]
+            supabase.table("cars").update({"delete_after": delete_after}).eq("id", car_id).execute()
+            return jsonify({
+                "message": f"This car is currently rented — it will be automatically removed after {delete_after}.",
+                "delete_after": delete_after,
+            }), 200
 
         result = supabase.table("cars").delete().eq("id", car_id).execute()
         if not result.data:

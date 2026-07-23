@@ -196,12 +196,20 @@ const API = {
 
   /**
    * DELETE /api/admin/cars/:id — removes a car from inventory. Admin only.
+   * If the car has upcoming (not-yet-started) reservations, the backend
+   * responds 409 with { requires_confirmation, future_count, message } —
+   * call again with confirmCancelFuture: true to proceed (this cancels
+   * those reservations and emails the affected customers). If the car is
+   * currently out on an active rental, it isn't deleted yet — the backend
+   * schedules it via delete_after and responds 200 with that date instead.
    * @param {string|number} carId
    * @param {string|number} requesterId
+   * @param {{ confirmCancelFuture?: boolean }} [opts]
    */
-  deleteCar(carId, requesterId) {
-    const qs = new URLSearchParams({ requester_id: requesterId }).toString();
-    return _request(`${BASE_URL}/api/admin/cars/${carId}?${qs}`, {
+  deleteCar(carId, requesterId, { confirmCancelFuture = false } = {}) {
+    const params = new URLSearchParams({ requester_id: requesterId });
+    if (confirmCancelFuture) params.append('confirm_cancel_future', 'true');
+    return _request(`${BASE_URL}/api/admin/cars/${carId}?${params.toString()}`, {
       method: 'DELETE',
     });
   },

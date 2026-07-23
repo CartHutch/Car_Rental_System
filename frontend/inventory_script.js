@@ -13,6 +13,53 @@ function gateAdminAccess() {
   initInventory();
 }
 
+/* ── Themed modal, replacing native confirm()/alert() ──
+   showModal() resolves true/false: true if the confirm button was clicked,
+   false for cancel, overlay-click, or Escape. Passing cancelLabel: null
+   hides the Cancel button entirely, for plain "OK" notices. */
+function showModal({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false }) {
+  return new Promise(resolve => {
+    const overlay    = document.getElementById('confirmModalOverlay');
+    const confirmBtn = document.getElementById('confirmModalConfirmBtn');
+    const cancelBtn  = document.getElementById('confirmModalCancelBtn');
+
+    document.getElementById('confirmModalTitle').textContent   = title;
+    document.getElementById('confirmModalMessage').textContent = message;
+    confirmBtn.textContent = confirmLabel;
+    confirmBtn.classList.toggle('btn-modal--danger', danger);
+    cancelBtn.hidden = cancelLabel === null;
+    if (cancelLabel !== null) cancelBtn.textContent = cancelLabel;
+
+    function cleanup(result) {
+      overlay.hidden = true;
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      overlay.removeEventListener('click', onOverlayClick);
+      document.removeEventListener('keydown', onKeydown);
+      resolve(result);
+    }
+    function onConfirm() { cleanup(true); }
+    function onCancel() { cleanup(false); }
+    function onOverlayClick(e) { if (e.target === overlay) cleanup(false); }
+    function onKeydown(e) { if (e.key === 'Escape') cleanup(false); }
+
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+    overlay.addEventListener('click', onOverlayClick);
+    document.addEventListener('keydown', onKeydown);
+
+    overlay.hidden = false;
+  });
+}
+
+function confirmDialog(title, message, confirmLabel = 'Delete') {
+  return showModal({ title, message, confirmLabel, cancelLabel: 'Cancel', danger: true });
+}
+
+function alertDialog(title, message) {
+  return showModal({ title, message, confirmLabel: 'OK', cancelLabel: null });
+}
+
 function escapeHtml(str) {
   if (str == null) return '';
   return String(str)
@@ -118,13 +165,34 @@ async function cycleStatus(carId) {
 }
 
 async function deleteCar(carId, label) {
-  if (!confirm(`Remove ${label} from inventory? This can't be undone.`)) return;
+  const confirmed = await confirmDialog('Remove Vehicle', `Remove ${label} from inventory? This can't be undone.`);
+  if (!confirmed) return;
 
-  const { ok } = await API.deleteCar(carId, requesterId);
-  if (ok) {
-    cars = cars.filter(c => String(c.id) !== String(carId));
-    render();
+  let { ok, status, data } = await API.deleteCar(carId, requesterId);
+
+  // Car has upcoming reservations — backend won't touch them without an
+  // explicit second confirmation, since it means cancelling real bookings.
+  if (!ok && status === 409 && data.requires_confirmation) {
+    const confirmedCancel = await confirmDialog('Upcoming Reservations', data.message, 'Delete Anyway');
+    if (!confirmedCancel) return;
+    ({ ok, data } = await API.deleteCar(carId, requesterId, { confirmCancelFuture: true }));
   }
+
+  if (!ok) {
+    await alertDialog('Error', data.error || 'Failed to delete car.');
+    return;
+  }
+
+  // Car is currently rented — backend deferred the actual deletion instead
+  // of removing the row, so just refresh to reflect its scheduled removal.
+  if (data.delete_after) {
+    await alertDialog('Scheduled for Removal', data.message);
+    loadCars();
+    return;
+  }
+
+  cars = cars.filter(c => String(c.id) !== String(carId));
+  render();
 }
 
 function render() {
@@ -177,6 +245,7 @@ function render() {
             <span class="inv-pill inv-status-${c.status} inv-bg-${c.status}">
               <span class="inv-dot" style="background:currentColor"></span>${meta.label}
             </span>
+            ${c.delete_after ? `<div class="inv-pending-delete">Scheduled for removal after ${escapeHtml(c.delete_after)}</div>` : ''}
           </div>
           <div class="inv-actions">
             <button class="inv-icon-btn inv-toggle" title="${c.status === 'rented' ? 'Currently rented — status is automatic' : 'Toggle status'}" data-act="toggle" data-id="${escapeHtml(String(c.id))}" ${c.status === 'rented' ? 'disabled' : ''}>${ICONS.toggle}</button>
