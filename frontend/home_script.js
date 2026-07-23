@@ -1,5 +1,6 @@
 // Page state
 let selectedCar = null;
+let pendingReservation = null;
 
 function isLoggedIn() {
   return !!sessionStorage.getItem('user_id');
@@ -34,7 +35,7 @@ function setFieldMsg(id, msg, type) {
   const el = document.getElementById(id);
   if (!el) return;
   el.textContent = msg;
-  el.className   = 'field-msg' + (type ? ' ' + type : '');
+  el.className = 'field-msg' + (type ? ' ' + type : '');
 }
 
 function setInputState(input, state) {
@@ -47,29 +48,29 @@ function setFormMsg(id, msg, type) {
   const el = document.getElementById(id);
   if (!el) return;
   el.textContent = msg;
-  el.className   = 'form-message' + (type ? ' ' + type : '');
+  el.className = 'form-message' + (type ? ' ' + type : '');
 }
 
 function setLoading(btnId, loading) {
   const btn = document.getElementById(btnId);
   if (!btn) return;
-  btn.disabled    = loading;
+  btn.disabled = loading;
   btn.textContent = loading ? 'Please wait…' : btn.dataset.label;
 }
 
 function escapeHtml(str) {
   if (str == null) return '';
   return String(str)
-    .replace(/&/g,  '&amp;')
-    .replace(/</g,  '&lt;')
-    .replace(/>/g,  '&gt;')
-    .replace(/"/g,  '&quot;')
-    .replace(/'/g,  '&#39;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /* ==== BROWSE CARS -> LOAD & RENDER ==== */
 async function loadCars(filters = {}) {
-  const grid    = document.getElementById('carGrid');
+  const grid = document.getElementById('carGrid');
   const counter = document.getElementById('resultsCount');
 
   grid.innerHTML = `
@@ -85,17 +86,17 @@ async function loadCars(filters = {}) {
 
   if (!ok) {
     grid.innerHTML = `
-      <div class="grid-empty">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <p>${escapeHtml(data.error || 'Could not reach the server.')}</p>
-      </div>`;
+    <div class="grid-empty">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p>${escapeHtml(data.error || 'Could not reach the server.')}</p>
+    </div>`;
     return;
   }
 
-  const cars  = Array.isArray(data) ? data : [];
+  const cars = Array.isArray(data) ? data : [];
   const count = cars.length;
   counter.textContent = count === 0
     ? 'No cars match your search.'
@@ -126,13 +127,13 @@ function renderCars(cars) {
     const imgHTML = car.image_url
       ? `<img class="car-card__img" src="${escapeHtml(car.image_url)}" alt="${escapeHtml(car.model)}" loading="lazy">`
       : `<div class="car-card__img-placeholder">
-           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
-             <rect x="2" y="7" width="20" height="12" rx="2"/>
-             <path d="M16 7l-1.5-3h-5L8 7"/>
-             <circle cx="6.5" cy="19" r="1.5"/>
-             <circle cx="17.5" cy="19" r="1.5"/>
-           </svg>
-         </div>`;
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+            <rect x="2" y="7" width="20" height="12" rx="2"/>
+            <path d="M16 7l-1.5-3h-5L8 7"/>
+            <circle cx="6.5" cy="19" r="1.5"/>
+            <circle cx="17.5" cy="19" r="1.5"/>
+          </svg>
+        </div>`;
 
     card.innerHTML = `
       ${imgHTML}
@@ -175,7 +176,7 @@ function renderCars(cars) {
       }
 
       const filterStart = document.getElementById('filterStartDate').value;
-      const filterEnd   = document.getElementById('filterEndDate').value;
+      const filterEnd = document.getElementById('filterEndDate').value;
 
       if (!filterStart || !filterEnd) {
         showNoticeModal(
@@ -186,11 +187,11 @@ function renderCars(cars) {
       }
 
       selectedCar = {
-        id:       btn.dataset.carId,
-        model:    btn.dataset.carModel,
-        price:    parseFloat(btn.dataset.carPrice) || 0,
-        seats:    btn.dataset.carSeats,
-        type:     btn.dataset.carType,
+        id:    btn.dataset.carId,
+        model: btn.dataset.carModel,
+        price: parseFloat(btn.dataset.carPrice) || 0,
+        seats: btn.dataset.carSeats,
+        type: btn.dataset.carType,
         location: btn.dataset.carLocation,
       };
       openReserveModal();
@@ -206,25 +207,25 @@ document.getElementById('filterForm').addEventListener('submit', e => {
 
 function applyFilters() {
   const startDate = document.getElementById('filterStartDate').value;
-  const endDate   = document.getElementById('filterEndDate').value;
+  const endDate = document.getElementById('filterEndDate').value;
 
   loadCars({
-    model:     document.getElementById('searchModel').value.trim(),
-    type:      document.getElementById('filterType').value,
-    seats:     document.getElementById('filterSeats').value,
-    location:  document.getElementById('filterLocation').value.trim(),
+    model: document.getElementById('searchModel').value.trim(),
+    type:    document.getElementById('filterType').value,
+    seats: document.getElementById('filterSeats').value,
+    location: document.getElementById('filterLocation').value.trim(),
     startDate: startDate,
-    endDate:   endDate,
+    endDate: endDate,
   });
 }
 
 document.getElementById('clearFilters').addEventListener('click', () => {
-  document.getElementById('searchModel').value     = '';
-  document.getElementById('filterType').value      = '';
-  document.getElementById('filterSeats').value     = '';
-  document.getElementById('filterLocation').value  = '';
+  document.getElementById('searchModel').value = '';
+  document.getElementById('filterType').value    = '';
+  document.getElementById('filterSeats').value = '';
+  document.getElementById('filterLocation').value = '';
   document.getElementById('filterStartDate').value = '';
-  document.getElementById('filterEndDate').value   = '';
+  document.getElementById('filterEndDate').value = '';
   loadCars();
 });
 
@@ -254,8 +255,8 @@ function highlightMatch(city, query) {
   const idx = city.toLowerCase().indexOf(query.toLowerCase());
   if (idx === -1) return escapeHtml(city);
   const before = escapeHtml(city.slice(0, idx));
-  const match  = escapeHtml(city.slice(idx, idx + query.length));
-  const after  = escapeHtml(city.slice(idx + query.length));
+  const match = escapeHtml(city.slice(idx, idx + query.length));
+  const after = escapeHtml(city.slice(idx + query.length));
   return `${before}<mark>${match}</mark>${after}`;
 }
 
@@ -279,7 +280,7 @@ function renderLocationDropdown(query) {
 }
 
 const filterLocationInput = document.getElementById('filterLocation');
-const locationDropdown    = document.getElementById('locationDropdown');
+const locationDropdown = document.getElementById('locationDropdown');
 
 filterLocationInput.addEventListener('focus', () => renderLocationDropdown(filterLocationInput.value));
 filterLocationInput.addEventListener('input', () => renderLocationDropdown(filterLocationInput.value));
@@ -302,7 +303,7 @@ loadCities();
 /* ==== NOTICE MODAL (themed replacement for alert()) ==== */
 
 function showNoticeModal(title, message) {
-  document.getElementById('noticeModalTitle').textContent   = title;
+  document.getElementById('noticeModalTitle').textContent = title;
   document.getElementById('noticeModalMessage').textContent = message;
   const overlay = document.getElementById('noticeModalOverlay');
   overlay.hidden = false;
@@ -360,7 +361,7 @@ function openReserveModal() {
 
   // Dates come from the Browse Cars filters — the modal just displays them.
   const filterStart = document.getElementById('filterStartDate').value;
-  const filterEnd   = document.getElementById('filterEndDate').value;
+  const filterEnd = document.getElementById('filterEndDate').value;
 
   document.getElementById('res-pickup-date-display').textContent = filterStart || '—';
   document.getElementById('res-return-date-display').textContent = filterEnd || '—';
@@ -384,7 +385,6 @@ function closeReserveModal() {
 }
 
 document.getElementById('modalCloseBtn').addEventListener('click', closeReserveModal);
-
 document.getElementById('reserveModalOverlay').addEventListener('click', e => {
   if (e.target.id === 'reserveModalOverlay') closeReserveModal();
 });
@@ -395,6 +395,8 @@ document.addEventListener('keydown', e => {
   if (!notice.hidden) { closeNoticeModal(); return; }
   const authRequired = document.getElementById('authRequiredModalOverlay');
   if (!authRequired.hidden) { closeAuthRequiredModal(); return; }
+  const payment = document.getElementById('paymentModalOverlay');
+  if (!payment.hidden) { closePaymentModal(); return; }
   const overlay = document.getElementById('reserveModalOverlay');
   if (!overlay.hidden) closeReserveModal();
 });
@@ -404,7 +406,7 @@ document.addEventListener('keydown', e => {
 function updateCostEstimate() {
   const pickupVal = document.getElementById('filterStartDate').value;
   const returnVal = document.getElementById('filterEndDate').value;
-  const box       = document.getElementById('costEstimate');
+  const box     = document.getElementById('costEstimate');
 
   if (!pickupVal || !returnVal || !selectedCar) { box.hidden = true; return; }
 
@@ -413,13 +415,11 @@ function updateCostEstimate() {
   );
   if (days <= 0) { box.hidden = true; return; }
 
-  document.getElementById('estimateDays').textContent  = `${days} day${days !== 1 ? 's' : ''}`;
-  document.getElementById('estimateRate').textContent  = `$${selectedCar.price.toFixed(2)} / day`;
+  document.getElementById('estimateDays').textContent = `${days} day${days !== 1 ? 's' : ''}`;
+  document.getElementById('estimateRate').textContent = `$${selectedCar.price.toFixed(2)} / day`;
   document.getElementById('estimateTotal').textContent = `$${(selectedCar.price * days).toFixed(2)}`;
   box.hidden = false;
 }
-
-
 
 /* RESERVATION FORM -> VALIDATION & SUBMIT */
 
@@ -436,11 +436,11 @@ document.getElementById('reserveForm').addEventListener('submit', async e => {
     return;
   }
 
-  const carId      = document.getElementById('res-carId').value.trim();
+  const carId    = document.getElementById('res-carId').value.trim();
   const pickupDate = document.getElementById('filterStartDate').value;
   const returnDate = document.getElementById('filterEndDate').value;
-  const location   = (selectedCar && selectedCar.location) || '';
-  const today      = new Date().toISOString().split('T')[0];
+  const location = (selectedCar && selectedCar.location) || '';
+  const today    = new Date().toISOString().split('T')[0];
 
   let valid = true;
 
@@ -466,37 +466,124 @@ document.getElementById('reserveForm').addEventListener('submit', async e => {
 
   if (!valid) return;
 
-  setLoading('reserve-btn', true);
-
   const userId = sessionStorage.getItem('user_id');
 
-  // API CALL (via api.js)
-  const { ok, data } = await API.createReservation({
-    user_id:         userId,
-    car_id:          carId,
-    PickUp_Date:     pickupDate,
-    Return_Date:     returnDate,
+  // Instead of booking immediately, stash the details and hand off to the
+  // fake payment modal — the reservation is only created once "payment" clears.
+  pendingReservation = {
+    user_id:      userId,
+    car_id:       carId,
+    PickUp_Date:  pickupDate,
+    Return_Date:  returnDate,
     Pickup_Location: location,
     Return_Location: location,
-  });
+    _model: (selectedCar && selectedCar.model) || 'this car',
+  };
 
-  if (ok) {
-    setFormMsg('reserve-msg', "✓ Reservation confirmed! You're all set.", 'success');
-    setLoading('reserve-btn', false);
-    setTimeout(() => {
-      closeReserveModal();
-      applyFilters(); // refresh car list to reflect new booking
-    }, 1200);
-    return;
+  openPaymentModal();
+});
+
+/* ==== FAKE PAYMENT MODAL ==== */
+
+function openPaymentModal() {
+  document.getElementById('paymentFormView').hidden = false;
+  document.getElementById('paymentSuccessView').hidden = true;
+  setFormMsg('payment-msg', '', '');
+  document.getElementById('paymentAmount').textContent =
+    document.getElementById('estimateTotal').textContent || '$0.00';
+  document.getElementById('payCardName').value = '';
+  document.getElementById('payCardNumber').value = '';
+  document.getElementById('payExpiry').value = '';
+  document.getElementById('payCvv').value = '';
+  document.getElementById('paymentModalOverlay').hidden = false;
+}
+
+function closePaymentModal() {
+  document.getElementById('paymentModalOverlay').hidden = true;
+  pendingReservation = null;
+}
+
+document.getElementById('paymentModalCloseBtn').addEventListener('click', closePaymentModal);
+document.getElementById('paymentModalOverlay').addEventListener('click', e => {
+  if (e.target.id === 'paymentModalOverlay') closePaymentModal();
+});
+
+/* Auto-format the card number as the user types — groups of 4 for
+   Visa/Mastercard/Discover (15-16 digits total), 4-6-5 for Amex. */
+document.getElementById('payCardNumber').addEventListener('input', function () {
+  const digits = this.value.replace(/\D/g, '').slice(0, 16);
+  let formatted;
+  if (/^3[47]/.test(digits)) {
+    formatted = [digits.slice(0, 4), digits.slice(4, 10), digits.slice(10, 15)]
+      .filter(Boolean).join(' ');
   } else {
-    setFormMsg('reserve-msg', data.error || 'Reservation failed. Please try again.', 'error');
+    formatted = (digits.match(/.{1,4}/g) || []).join(' ');
+  }
+  this.value = formatted;
+});
+
+/* Auto-insert the "/" in the expiry field as the user types digits. */
+document.getElementById('payExpiry').addEventListener('input', function () {
+  const digits = this.value.replace(/\D/g, '').slice(0, 4);
+  this.value = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+});
+
+document.getElementById('payNowBtn').addEventListener('click', async () => {
+  if (!pendingReservation) return;
+
+  const name = document.getElementById('payCardName').value.trim();
+  const cardNumber = document.getElementById('payCardNumber').value.replace(/\s/g, '');
+  const expiry = document.getElementById('payExpiry').value.trim();
+  const cvv = document.getElementById('payCvv').value.trim();
+
+  const cardNumberValid = cardNumber.length === 15 || cardNumber.length === 16;
+
+  if (!name || !cardNumberValid || !/^\d{2}\/\d{2}$/.test(expiry) || cvv.length < 3) {
+    setFormMsg('payment-msg', 'Please fill in all card fields correctly.', 'error');
+    return;
   }
 
-  setLoading('reserve-btn', false);
+  setFormMsg('payment-msg', '', '');
+  setLoading('payNowBtn', true);
+
+  // Simulate payment processing
+  await new Promise(resolve => setTimeout(resolve, 1200));
+
+  const { ok, data } = await API.createReservation(pendingReservation);
+  setLoading('payNowBtn', false);
+
+  if (!ok) {
+    setFormMsg('payment-msg', data.error || 'Payment failed. Please try again.', 'error');
+    return;
+  }
+
+  const model = pendingReservation._model;
+  const amount = document.getElementById('paymentAmount').textContent;
+  const dateRange = `${pendingReservation.PickUp_Date} to ${pendingReservation.Return_Date}`;
+
+  // Flip to the success screen first so the UI always reflects the
+  // completed booking, even if something below (notifications) hiccups.
+  document.getElementById('paymentSuccessMessage').textContent =
+    `A confirmation has been sent to your email. Booking for ${model} is confirmed.`;
+  document.getElementById('paymentFormView').hidden = true;
+  document.getElementById('paymentSuccessView').hidden = false;
+
+  try {
+    addNotification(`Payment confirmed for ${model} (${amount}).`);
+    addNotification(`Booking for ${model} confirmed for ${dateRange}.`);
+  } catch (err) {
+    console.error('Could not save notification:', err);
+  }
+});
+
+document.getElementById('paymentDoneBtn').addEventListener('click', () => {
+  closePaymentModal();
+  closeReserveModal();
+  applyFilters(); // refresh car list to reflect new booking
 });
 
 const todayStr = new Date().toISOString().split('T')[0];
 document.getElementById('filterStartDate').min = todayStr;
-document.getElementById('filterEndDate').min   = todayStr;
+document.getElementById('filterEndDate').min = todayStr;
 
 loadCars();
