@@ -179,4 +179,30 @@ const API = {
     if (endDate) params.append('end_date', endDate);
     return _request(`${BASE_URL}/api/admin/rental-stats?${params.toString()}`);
   },
+
+  /**
+   * PATCH /api/admin/cars/:id/status — cycles a car's inventory status
+   * (available / rented / maintenance). Admin only.
+   * @param {string|number} carId
+   * @param {'available'|'rented'|'maintenance'} status
+   * @param {string|number} requesterId
+   */
+  updateCarStatus(carId, status, requesterId) {
+    return _request(`${BASE_URL}/api/admin/cars/${carId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, requester_id: requesterId }),
+    });
+  },
+
+  /**
+   * DELETE /api/admin/cars/:id — removes a car from inventory. Admin only.
+   * @param {string|number} carId
+   * @param {string|number} requesterId
+   */
+  deleteCar(carId, requesterId) {
+    const qs = new URLSearchParams({ requester_id: requesterId }).toString();
+    return _request(`${BASE_URL}/api/admin/cars/${carId}?${qs}`, {
+      method: 'DELETE',
+    });
+  },
 };

@@ -563,7 +563,12 @@ def admin_list_users():
 
 @app.route("/api/admin/cars", methods=["GET"])
 def admin_list_cars():
-    """Full car list for the admin dashboard's car search/select filter."""
+    """Full car list for the admin dashboard's car search/select filter and
+    the inventory page. 'status' reflects manual admin overrides (available/
+    maintenance), except it's forced to 'rented' whenever the car has an
+    active, non-cancelled reservation covering today — that part isn't
+    something an admin toggles, it's just true right now.
+    """
     try:
         requester_id = request.args.get("requester_id")
         if not _is_admin(requester_id):
@@ -571,16 +576,76 @@ def admin_list_cars():
 
         rows = (
             supabase.table("cars")
-            .select("id, model, type, location, price")
+            .select("id, model, type, location, price, seats, image_url, status")
             .order("model")
             .execute()
             .data or []
         )
+
+        today_str = date.today().isoformat()
+        active_res = (
+            supabase.table("reservations")
+            .select("car_id, status")
+            .lte("PickUp_Date", today_str)
+            .gte("Return_Date", today_str)
+            .execute()
+            .data or []
+        )
+        rented_car_ids = {
+            str(r["car_id"]) for r in active_res
+            if (r.get("status") or "").lower() != "cancelled"
+        }
+
+        for row in rows:
+            if str(row["id"]) in rented_car_ids:
+                row["status"] = "rented"
+
         return jsonify(rows), 200
 
     except Exception as e:
         print("Admin list cars error:", e)
         return jsonify({"error": "Failed to fetch cars."}), 500
+
+
+@app.route("/api/admin/cars/<car_id>/status", methods=["PATCH"])
+def admin_update_car_status(car_id):
+    try:
+        data = request.json or {}
+        requester_id = data.get("requester_id")
+        if not _is_admin(requester_id):
+            return jsonify({"error": "Not authorized."}), 403
+
+        status = (data.get("status") or "").strip().lower()
+        if status not in ("available", "maintenance"):
+            return jsonify({"error": "Invalid status. 'rented' is set automatically and can't be assigned manually."}), 400
+
+        result = supabase.table("cars").update({"status": status}).eq("id", car_id).execute()
+        if not result.data:
+            return jsonify({"error": "Car not found."}), 404
+
+        return jsonify(result.data[0]), 200
+
+    except Exception as e:
+        print("Admin update car status error:", e)
+        return jsonify({"error": "Failed to update car status."}), 500
+
+
+@app.route("/api/admin/cars/<car_id>", methods=["DELETE"])
+def admin_delete_car(car_id):
+    try:
+        requester_id = request.args.get("requester_id")
+        if not _is_admin(requester_id):
+            return jsonify({"error": "Not authorized."}), 403
+
+        result = supabase.table("cars").delete().eq("id", car_id).execute()
+        if not result.data:
+            return jsonify({"error": "Car not found."}), 404
+
+        return jsonify({"message": "Car deleted."}), 200
+
+    except Exception as e:
+        print("Admin delete car error:", e)
+        return jsonify({"error": "Failed to delete car."}), 500
 
 
 @app.route("/api/admin/rental-stats", methods=["GET"])
@@ -749,6 +814,12 @@ def home():
 @app.route("/admin.html")
 def admin():
     return send_from_directory(FRONTEND_DIR, "admin.html")
+
+
+@app.route("/inventory")
+@app.route("/inventory.html")
+def inventory():
+    return send_from_directory(FRONTEND_DIR, "inventory.html")
 
 
 @app.route("/")
