@@ -26,6 +26,10 @@ if (!isAuthorizedAdmin()) {
   window.location.replace('/');
 } else {
   document.getElementById('adminAddCarApp').hidden = false;
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.clear();
+    window.location.href = '/';
+  });
 }
 
 const preview = {
@@ -77,6 +81,10 @@ function validatePayload(payload) {
 
   if (Number(payload.price) < 0) {
     return 'Daily price cannot be negative.';
+  }
+
+  if (!Number.isInteger(Number(payload.price))) {
+    return 'Daily price must be a whole dollar amount.';
   }
 
   return '';
@@ -205,9 +213,7 @@ form.addEventListener('submit', async event => {
     return;
   }
 
-  form.reset();
-  updatePreview();
-  setMessage(data.message || 'Vehicle added successfully.', 'success');
+  window.location.href = '/inventory';
 });
 
 updatePreview();

@@ -1,60 +1,12 @@
-.admin-header-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.back-to-dashboard {
-  color: #09193a;
-  font-size: 14px;
-  font-weight: 800;
-  text-decoration: none;
-}
-
-.back-to-dashboard:hover {
-  text-decoration: underline;
-}
-
-.admin-header-label {
-  padding: 8px 14px;
-  border-radius: 20px;
-  background: #f0f2f7;
-  color: #09193a;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.admin-main {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 48px 40px 80px;
-}
-
-.admin-heading {
-  margin-bottom: 28px;
-}
-
-.admin-eyebrow {
-  margin-bottom: 8px;
-  color: #2f5bb8;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.admin-heading h1 {
-  color: #081a37;
-  font-size: 34px;
-  line-height: 1.15;
-}
-
 .admin-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
   gap: 24px;
   align-items: start;
+}
+
+.add-vehicle-body {
+  padding: 28px;
 }
 
 .admin-panel {
@@ -284,13 +236,13 @@
 }
 
 @media (max-width: 820px) {
-  .admin-main {
-    padding: 32px 20px 56px;
-  }
-
   .admin-layout,
   .form-row {
     grid-template-columns: 1fr;
+  }
+
+  .add-vehicle-body {
+    padding: 20px;
   }
 
   .preview-panel {

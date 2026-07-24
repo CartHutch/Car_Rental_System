@@ -112,7 +112,7 @@ function initInventory() {
   });
 
   document.getElementById('addBtn').addEventListener('click', () => {
-    console.log('Add vehicle'); // TODO: open add-vehicle form
+    window.location.href = '/admin/add-car';
   });
 
   loadCars();

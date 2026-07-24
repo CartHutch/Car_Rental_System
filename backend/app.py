@@ -217,14 +217,18 @@ def admin_create_car():
 
         try:
             seats = int(data["seats"])
-            price = float(data["price"])
+            price_value = float(data["price"])
         except (TypeError, ValueError):
             return jsonify({"error": "Seats and price must be valid numbers."}), 400
 
         if seats <= 0:
             return jsonify({"error": "Seats must be greater than 0."}), 400
-        if price < 0:
+        if price_value < 0:
             return jsonify({"error": "Price cannot be negative."}), 400
+        if not price_value.is_integer():
+            return jsonify({"error": "Daily price must be a whole dollar amount."}), 400
+
+        price = int(price_value)
 
         new_car = {
             "model": data["model"].strip(),

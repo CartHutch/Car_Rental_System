@@ -106,23 +106,6 @@ button {
   padding: 40px 40px 80px;
 }
 
-.btn-manage-inventory {
-  display: inline-block;
-  background: #09193a;
-  color: #ffffff;
-  text-decoration: none;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 10px 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  transition: background 0.2s ease;
-}
-
-.btn-manage-inventory:hover {
-  background: #132a5c;
-}
-
 .admin-heading {
   margin-bottom: 28px;
 }
@@ -134,8 +117,21 @@ button {
   margin-bottom: 6px;
 }
 
-.vehicle-management {
+.inventory-management {
   margin-bottom: 40px;
+}
+
+.inventory-management h1 {
+  margin-bottom: 16px;
+  color: #081a37;
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.inventory-actions-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
   padding: 24px;
   border: 1px solid #e7eaf0;
   border-radius: 14px;
@@ -143,16 +139,10 @@ button {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
-.vehicle-management h1 {
-  margin-bottom: 16px;
-  color: #081a37;
-  font-size: 30px;
-  font-weight: 800;
-}
-
-.btn-add-vehicle {
+.btn-inventory-action {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 44px;
   padding: 0 22px;
   border-radius: 22px;
@@ -164,7 +154,7 @@ button {
   transition: background-color 0.2s ease;
 }
 
-.btn-add-vehicle:hover {
+.btn-inventory-action:hover {
   background: #12336d;
 }
 
