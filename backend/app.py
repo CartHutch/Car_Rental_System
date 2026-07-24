@@ -203,6 +203,49 @@ def _compute_days(pickup, ret):
         return 0
 
 
+@app.route("/api/admin/cars", methods=["POST"])
+def admin_create_car():
+    try:
+        data = request.json or {}
+        if not _is_admin(data.get("requester_id")):
+            return jsonify({"error": "Not authorized."}), 403
+
+        required = ["model", "type", "seats", "location", "price"]
+        for field in required:
+            if data.get(field) in (None, ""):
+                return jsonify({"error": f"'{field}' is required."}), 400
+
+        try:
+            seats = int(data["seats"])
+            price = float(data["price"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "Seats and price must be valid numbers."}), 400
+
+        if seats <= 0:
+            return jsonify({"error": "Seats must be greater than 0."}), 400
+        if price < 0:
+            return jsonify({"error": "Price cannot be negative."}), 400
+
+        new_car = {
+            "model": data["model"].strip(),
+            "type": data["type"].strip(),
+            "seats": seats,
+            "location": data["location"].strip(),
+            "price": price,
+            "image_url": (data.get("image_url") or "").strip() or None,
+        }
+
+        result = supabase.table("cars").insert(new_car).execute()
+        if not result.data:
+            return jsonify({"error": "Failed to add vehicle."}), 500
+
+        return jsonify({"message": "Vehicle added successfully.", "car": result.data[0]}), 201
+    except Exception as e:
+        print("Admin create car error:", e)
+        return jsonify({"error": "Failed to add vehicle."}), 500
+
+
+# ===== Cars Reservations =====
 @app.route("/api/reservations", methods=["POST"])
 def create_reservation():
     try:
@@ -973,6 +1016,11 @@ def home():
 @app.route("/admin.html")
 def admin():
     return send_from_directory(FRONTEND_DIR, "admin.html")
+
+
+@app.route("/admin/add-car")
+def admin_add_car():
+    return send_from_directory(FRONTEND_DIR, "admin-add-car.html")
 
 
 @app.route("/inventory")

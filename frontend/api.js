@@ -181,6 +181,17 @@ const API = {
   },
 
   /**
+   * POST /api/admin/cars
+   * @param {{ requester_id, model, type, seats, location, price, image_url }} payload
+   */
+  createCar(payload) {
+    return _request(`${BASE_URL}/api/admin/cars`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
    * PATCH /api/admin/cars/:id/status — cycles a car's inventory status
    * (available / rented / maintenance). Admin only.
    * @param {string|number} carId
