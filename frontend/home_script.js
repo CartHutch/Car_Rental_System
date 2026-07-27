@@ -137,6 +137,10 @@ function renderCars(cars) {
 
     card.innerHTML = `
       ${imgHTML}
+      <div class="car-card__hover-info">
+    <h4>${escapeHtml(car.model)}</h4>
+    <p>${escapeHtml(car.description || `${car.type || 'Car'} available in ${car.location || 'your area'} · ${car.seats ? car.seats + ' seats' : ''} · $${parseFloat(car.price || 0).toFixed(2)}/day`)}</p>
+  </div>
       <div class="car-card__body">
         <h3 class="car-card__model">${escapeHtml(car.model)}</h3>
         <p class="car-card__meta">

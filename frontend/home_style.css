@@ -448,6 +448,7 @@ body {
 }
 
 .car-card {
+  position: relative;
   background: #ffffff;
   border-radius: 14px;
   overflow: hidden;
@@ -455,6 +456,37 @@ body {
   display: flex;
   flex-direction: column;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.car-card__hover-info {
+  position: absolute;
+  inset: 0;
+  background: rgba(9, 25, 58, 0.92);
+  color: #ffffff;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  z-index: 5;
+}
+
+.car-card:hover .car-card__hover-info {
+  opacity: 1;
+}
+
+.car-card__hover-info h4 {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.car-card__hover-info p {
+  font-size: 14px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .car-card:hover {
