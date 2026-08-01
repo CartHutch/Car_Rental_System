@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Account · RentalRide</title>
+  <link rel="stylesheet" href="home_style.css">
+  <link rel="stylesheet" href="account_style.css">
+  <link rel="icon" href="./favicon.ico" type="image/x-icon">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <a href="home.html"><img src="./logo.png" alt="RentalRide" class="logo"></a>
+    <div class="user-controls">
+      <div class="notif-wrap">
+        <button class="notif-bell-btn" id="notifBellBtn" type="button" title="Notifications">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notif-badge" id="notifBadge" hidden>0</span>
+        </button>
+        <div class="notif-dropdown" id="notifDropdown" hidden>
+          <div class="notif-dropdown-header">Notifications</div>
+          <div class="notif-list" id="notifList">
+            <div class="notif-empty">No notifications yet.</div>
+          </div>
+        </div>
+      </div>
+      <button class="account-btn account-btn--active" id="accountBtn" title="My Account">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span id="userFirstName">Account</span>
+      </button>
+      <button class="btn-logout" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <main class="account-main">
+    <div class="account-heading">
+      <h1>My Reservations</h1>
+      <p>Keep track of your upcoming trips and past rentals.</p>
+    </div>
+
+    <!-- UPCOMING -->
+    <section class="res-section">
+      <h2 class="res-section-title">Upcoming</h2>
+      <div class="res-table">
+        <div class="res-table-head">
+          <span class="res-col res-col--car">Car</span>
+          <span class="res-col res-col--dates">Rental Dates</span>
+          <span class="res-col res-col--location">Location</span>
+          <span class="res-col res-col--cost">Total Cost</span>
+          <span class="res-col res-col--actions"></span>
+        </div>
+        <div class="res-list" id="upcomingList">
+          <div class="res-loading"><div class="spinner"></div><p>Loading reservations…</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RENTAL HISTORY -->
+    <section class="res-section">
+      <div class="history-section-header">
+        <h2 class="res-section-title" style="margin-bottom:0;">Rental History</h2>
+        <div class="history-filters">
+          <span class="history-filter-label">Show:</span>
+          <button class="hf-pill hf-pill--active" data-filter="all">All</button>
+          <button class="hf-pill" data-filter="completed">Completed</button>
+          <button class="hf-pill" data-filter="cancelled">Cancelled</button>
+        </div>
+      </div>
+
+      <!-- Summary strip -->
+      <div class="history-summary" id="historySummary" hidden>
+        <div class="hs-card">
+          <span class="hs-label">Total Rentals</span>
+          <span class="hs-value" id="hsTotalRentals">0</span>
+        </div>
+        <div class="hs-card">
+          <span class="hs-label">Total Spent</span>
+          <span class="hs-value" id="hsTotalSpent">$0</span>
+        </div>
+        <div class="hs-card">
+          <span class="hs-label">Completed</span>
+          <span class="hs-value" id="hsCompleted">0</span>
+        </div>
+        <div class="hs-card">
+          <span class="hs-label">Cancelled</span>
+          <span class="hs-value" id="hsCancelled">0</span>
+        </div>
+      </div>
+
+      <div class="res-table history-scroll-wrap">
+        <div class="res-table-head history-head">
+          <span class="res-col res-col--car">Car</span>
+          <span class="res-col res-col--dates">Rental Dates</span>
+          <span class="res-col res-col--location">Location</span>
+          <span class="res-col res-col--cost">Total Cost</span>
+          <span class="res-col res-col--status">Status</span>
+        </div>
+        <div class="res-list history-list" id="historyList">
+          <div class="res-loading"><div class="spinner"></div><p>Loading history…</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- CANCEL MODAL -->
+  <div class="modal-overlay notice-overlay" id="cancelModalOverlay" hidden>
+    <div class="notice-card">
+      <button type="button" class="modal-close modal-close--dark" id="cancelModalCloseBtn" aria-label="Close">✕</button>
+      <div class="notice-icon notice-icon--warn">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <h3 class="notice-title">Cancel Reservation?</h3>
+      <p class="notice-message" id="cancelModalMessage">Are you sure you want to cancel this reservation? This can't be undone.</p>
+      <div class="notice-message" id="cancelModalError" style="display:none; color:#c0392b; margin-bottom:14px;"></div>
+      <div class="cancel-modal-actions">
+        <button type="button" class="btn-keep" id="cancelModalKeepBtn">Keep Reservation</button>
+        <button type="button" class="btn-confirm-cancel" id="cancelModalConfirmBtn">Yes, Cancel It</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script src="notifications.js"></script>
+  <script src="account_script.js"></script>
+</body>
+</html>
