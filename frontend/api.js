@@ -1,4 +1,4 @@
-const BASE_URL = 'https://car-rental-system-23td.onrender.com/';
+const BASE_URL = 'https://car-rental-system-23td.onrender.com';
 
 /* ===== Low Level Helpers =====
    - Internal wrapper around fetch.
