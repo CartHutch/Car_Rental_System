@@ -467,14 +467,17 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  gap: 8px;
   opacity: 0;
+  transform: translateY(12px);
   pointer-events: none;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.3s ease, transform 0.3s ease;
   z-index: 5;
 }
 
 .car-card:hover .car-card__hover-info {
   opacity: 1;
+  transform: translateY(0);
 }
 
 .car-card__hover-info h4 {
@@ -487,6 +490,27 @@ body {
   font-size: 14px;
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.9);
+}
+
+.car-card__status {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-bottom: 4px;
+}
+
+.car-card__status--available {
+  background: #1e8449;
+  color: #fff;
+}
+
+.car-card__status--rented {
+  background: #c0392b;
+  color: #fff;
 }
 
 .car-card:hover {
