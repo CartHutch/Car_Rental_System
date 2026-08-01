@@ -1,4 +1,4 @@
-const BASE_URL = 'http://127.0.0.1:5000'; // single backend - app.py
+const BASE_URL = 'https://car-rental-system-23td.onrender.com/';
 
 /* ===== Low Level Helpers =====
    - Internal wrapper around fetch.
