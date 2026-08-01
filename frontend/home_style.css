@@ -513,6 +513,11 @@ body {
   color: #fff;
 }
 
+.car-card__status--unavailable {
+  background: #b9770e;
+  color: #fff;
+}
+
 .car-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
@@ -607,6 +612,39 @@ body {
 .btn-reserve-card:hover {
   background: #09193a;
   color: #ffffff;
+}
+
+.car-card--unavailable {
+  filter: grayscale(0.85);
+  opacity: 0.65;
+}
+
+.car-card--unavailable:hover {
+  transform: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+}
+
+.car-card__unavailable-badge {
+  margin-top: 8px;
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #c0392b;
+  background: #fbe7e4;
+  border-radius: 6px;
+  padding: 3px 8px;
+  width: fit-content;
+}
+
+.btn-reserve-card:disabled {
+  cursor: not-allowed;
+  border-color: #ccc;
+  color: #999;
+}
+
+.btn-reserve-card:disabled:hover {
+  background: transparent;
+  color: #999;
 }
 
 /* RESERVE MODAL */

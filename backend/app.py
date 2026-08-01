@@ -272,6 +272,10 @@ def create_reservation():
         if data["Return_Date"] <= data["PickUp_Date"]:
             return jsonify({"error": "Return date must be after pick-up date."}), 400
 
+        car_row = supabase.table("cars").select("status").eq("id", car_id).execute().data or []
+        if car_row and (car_row[0].get("status") or "").lower() == "maintenance":
+            return jsonify({"error": "This car is currently unavailable for maintenance."}), 409
+
         existing = (
             supabase.table("reservations")
             .select("PickUp_Date, Return_Date")

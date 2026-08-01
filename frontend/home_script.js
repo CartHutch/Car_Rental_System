@@ -121,8 +121,10 @@ function renderCars(cars) {
   }
 
   cars.forEach(car => {
+    const isUnavailable = (car.status || '').toLowerCase() === 'maintenance';
+
     const card = document.createElement('article');
-    card.className = 'car-card';
+    card.className = isUnavailable ? 'car-card car-card--unavailable' : 'car-card';
 
     const imgHTML = car.image_url
       ? `<img class="car-card__img" src="${escapeHtml(car.image_url)}" alt="${escapeHtml(car.model)}" loading="lazy">`
@@ -138,8 +140,8 @@ function renderCars(cars) {
     card.innerHTML = `
       ${imgHTML}
       <div class="car-card__hover-info">
-  <span class="car-card__status car-card__status--${car.status === 'rented' ? 'rented' : 'available'}">
-    ${car.status === 'rented' ? 'Currently Rented' : 'Available Now'}
+  <span class="car-card__status car-card__status--${car.status === 'rented' ? 'rented' : isUnavailable ? 'unavailable' : 'available'}">
+    ${car.status === 'rented' ? 'Currently Rented' : isUnavailable ? 'Currently Unavailable' : 'Available Now'}
   </span>
   <h4>${escapeHtml(car.model)}</h4>
   <p>${escapeHtml(car.description || `Perfect for exploring ${car.location || 'the city'} — book it before it's gone.`)}</p>
@@ -157,6 +159,7 @@ function renderCars(cars) {
           $${parseFloat(car.price || 0).toFixed(2)}<span>/ day</span>
         </p>
         <p class="car-card__id">ID: ${escapeHtml(String(car.id ?? ''))}</p>
+        ${isUnavailable ? '<p class="car-card__unavailable-badge">Currently Unavailable</p>' : ''}
       </div>
       <div class="car-card__footer">
         <button
@@ -166,8 +169,9 @@ function renderCars(cars) {
           data-car-price="${car.price || 0}"
           data-car-seats="${escapeHtml(String(car.seats ?? ''))}"
           data-car-type="${escapeHtml(car.type || '')}"
-          data-car-location="${escapeHtml(car.location || '')}">
-          Reserve This Car
+          data-car-location="${escapeHtml(car.location || '')}"
+          ${isUnavailable ? 'disabled' : ''}>
+          ${isUnavailable ? 'Unavailable' : 'Reserve This Car'}
         </button>
       </div>`;
 
@@ -177,6 +181,8 @@ function renderCars(cars) {
   // Wire up Reserve buttons -> open modal
   grid.querySelectorAll('.btn-reserve-card').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+
       if (!isLoggedIn()) {
         openAuthRequiredModal();
         return;
