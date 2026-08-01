@@ -566,8 +566,8 @@ document.getElementById('payNowBtn').addEventListener('click', async () => {
   setLoading('payNowBtn', false);
 
   if (!ok) {
-    setFormMsg('payment-msg', data.error || 'Payment failed. Please try again.', 'error');
-    return;
+  document.getElementById('paymentErrorMessage').textContent = data.error || 'Payment failed. Please try again.';
+  return;
   }
 
   const model = pendingReservation._model;
