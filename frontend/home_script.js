@@ -566,7 +566,7 @@ document.getElementById('payNowBtn').addEventListener('click', async () => {
   setLoading('payNowBtn', false);
 
   if (!ok) {
-  document.getElementById('paymentErrorMessage').textContent = data.error || 'Payment failed. Please try again.';
+  setFormMsg('payment-msg', data.error || 'Payment failed. Please try again.', 'error');
   return;
   }
 
